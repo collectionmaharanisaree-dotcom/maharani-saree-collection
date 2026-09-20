@@ -1,30 +1,355 @@
 const SITE_URL = 'https://collectionmaharanisaree-dotcom.github.io/maharani-saree-collection/';
 const WHATSAPP = '919097900814';
-// Replace these clearly marked sample entries with real catalogue data when ready.
+
 const products = [
-  { id: 1, name: 'Banarasi Zari Saree', category: 'Saree', price: 2199, mrp: 2999, image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=700&q=80', description: 'A graceful festive drape with a classic Banarasi-inspired zari look.' },
-  { id: 2, name: 'Festive Designer Lehnga', category: 'Lehnga', price: 3499, mrp: 4999, image: 'https://images.unsplash.com/photo-1597983073493-88cd35cf93d0?auto=format&fit=crop&w=700&q=80', description: 'A celebration-ready silhouette for weddings and special occasions.' },
-  { id: 3, name: 'Everyday Cotton Suit', category: 'Suit', price: 1299, mrp: 1799, image: 'https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=700&q=80', description: 'An easy, comfortable suit for polished everyday dressing.' },
-  { id: 4, name: 'Printed Comfort Kurti', category: 'Kurti', price: 799, mrp: 1099, image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=700&q=80', description: 'A versatile printed kurti that moves effortlessly from day to evening.' },
-  { id: 5, name: 'Flowy Palazzo Set', category: 'Palazo', price: 999, mrp: 1399, image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=700&q=80', description: 'Relaxed, flowy tailoring with an elegant finish.' },
-  { id: 6, name: 'Kids Festive Set', category: 'Kids Clothes', price: 899, mrp: 1299, image: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?auto=format&fit=crop&w=700&q=80', description: 'A cheerful festive look for little celebrations.' }
+  {
+    id: 1,
+    name: 'Saree',
+    category: 'Saree',
+    price: 867,
+    mrp: 1299,
+    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=700&q=80',
+    description: 'Beautiful saree collection for festive and everyday occasions.'
+  },
+  {
+    id: 2,
+    name: 'Lehnga',
+    category: 'Lehnga',
+    price: 1499,
+    mrp: 1999,
+    image: 'https://images.unsplash.com/photo-1597983073493-88cd35cf93d0?auto=format&fit=crop&w=700&q=80',
+    description: 'Stylish lehnga collection for weddings and special occasions.'
+  },
+  {
+    id: 3,
+    name: 'Suit',
+    category: 'Suit',
+    price: 999,
+    mrp: 1499,
+    image: 'https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=700&q=80',
+    description: 'Elegant and comfortable suit collection.'
+  },
+  {
+    id: 4,
+    name: 'Kurti',
+    category: 'Kurti',
+    price: 599,
+    mrp: 899,
+    image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=700&q=80',
+    description: 'Trendy kurti collection for everyday style.'
+  },
+  {
+    id: 5,
+    name: 'Palazo',
+    category: 'Palazo',
+    price: 699,
+    mrp: 999,
+    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=700&q=80',
+    description: 'Comfortable and stylish palazo collection.'
+  }
 ];
-const categories = [{ name: 'Saree', label: 'Sarees', image: products[0].image }, { name: 'Lehnga', label: 'Lehngas', image: products[1].image }, { name: 'Suit', label: 'Suits', image: products[2].image }, { name: 'Kurti', label: 'Kurtis', image: products[3].image }, { name: 'Kids Clothes', label: 'Kidswear', image: products[5].image }];
+
+const categories = [
+  { name: 'Saree', label: 'Sarees', image: products[0].image },
+  { name: 'Lehnga', label: 'Lehngas', image: products[1].image },
+  { name: 'Suit', label: 'Suits', image: products[2].image },
+  { name: 'Kurti', label: 'Kurtis', image: products[3].image },
+  { name: 'Palazo', label: 'Palazo', image: products[4].image }
+];
+
 let cart = JSON.parse(localStorage.getItem('maharani-cart') || '[]');
+
 const money = n => `₹${Number(n).toLocaleString('en-IN')}`;
 const $ = id => document.getElementById(id);
-function saveCart() { localStorage.setItem('maharani-cart', JSON.stringify(cart)); }
-function renderCategories() { $('categoryGrid').innerHTML = categories.map(c => `<button class="category-card" data-category="${c.name}"><img src="${c.image}" alt="${c.label}" loading="lazy"><span>${c.label}</span><b>Explore →</b></button>`).join(''); document.querySelectorAll('.category-card').forEach(b => b.onclick = () => { $('categoryFilter').value = b.dataset.category; renderProducts(); $('shop').scrollIntoView({ behavior: 'smooth' }); }); }
-function renderProducts() { const term = $('searchInput').value.trim().toLowerCase(), category = $('categoryFilter').value; const shown = products.filter(p => (category === 'All' || p.category === category) && `${p.name} ${p.category}`.toLowerCase().includes(term)); $('productGrid').innerHTML = shown.map(p => `<article class="product-card"><button class="product-image" data-detail="${p.id}" aria-label="View ${p.name} details"><img src="${p.image}" alt="${p.name}" loading="lazy"><span class="discount">${Math.round((1 - p.price / p.mrp) * 100)}% off</span></button><div class="product-info"><p class="product-category">${p.category}</p><h3>${p.name}</h3><div class="price"><strong>${money(p.price)}</strong><del>${money(p.mrp)}</del></div><button class="button button-dark add-button" data-add="${p.id}">Add to bag</button></div></article>`).join(''); $('noResults').hidden = shown.length > 0; document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addToCart(+b.dataset.add)); document.querySelectorAll('[data-detail]').forEach(b => b.onclick = () => showDetail(+b.dataset.detail)); }
-function addToCart(id) { const item = cart.find(x => x.id === id); item ? item.qty++ : cart.push({ id, qty: 1 }); saveCart(); renderCart(); openDrawer(); toast('Added to your bag'); }
-function changeQty(id, delta) { const item = cart.find(x => x.id === id); if (!item) return; item.qty += delta; if (item.qty < 1) cart = cart.filter(x => x.id !== id); saveCart(); renderCart(); }
-function cartTotal() { return cart.reduce((sum, x) => sum + (products.find(p => p.id === x.id)?.price || 0) * x.qty, 0); }
-function renderCart() { const count = cart.reduce((sum, x) => sum + x.qty, 0); $('cartCount').textContent = count; $('cartTotal').textContent = money(cartTotal()); $('cartItems').innerHTML = cart.length ? cart.map(x => { const p = products.find(y => y.id === x.id); return `<div class="cart-item"><img src="${p.image}" alt=""><div><strong>${p.name}</strong><small>${money(p.price)} · ${p.category}</small><div class="quantity"><button data-change="${p.id}" data-delta="-1">−</button><span>${x.qty}</span><button data-change="${p.id}" data-delta="1">+</button><button class="remove" data-remove="${p.id}">Remove</button></div></div></div>`; }).join('') : '<div class="empty-cart"><span>○</span><p>Your bag is waiting for something beautiful.</p><a href="#shop" id="emptyShop">Explore collection</a></div>'; document.querySelectorAll('[data-change]').forEach(b => b.onclick = () => changeQty(+b.dataset.change, +b.dataset.delta)); document.querySelectorAll('[data-remove]').forEach(b => b.onclick = () => { cart = cart.filter(x => x.id !== +b.dataset.remove); saveCart(); renderCart(); }); const empty = $('emptyShop'); if (empty) empty.onclick = closeDrawer; }
-function showDetail(id) { const p = products.find(x => x.id === id); $('productDetail').innerHTML = `<img src="${p.image}" alt="${p.name}"><div><p class="eyebrow">${p.category}</p><h2>${p.name}</h2><p>${p.description}</p><div class="price detail-price"><strong>${money(p.price)}</strong><del>${money(p.mrp)}</del></div><p class="sample-note">Sample catalogue price · confirm availability before ordering.</p><button class="button button-dark full" data-detail-add="${p.id}">Add to bag</button></div>`; $('productDialog').showModal(); document.querySelector('[data-detail-add]').onclick = () => { addToCart(id); $('productDialog').close(); }; }
-function openDrawer() { $('cartDrawer').classList.add('open'); $('drawerOverlay').classList.add('open'); $('cartDrawer').setAttribute('aria-hidden', 'false'); } function closeDrawer() { $('cartDrawer').classList.remove('open'); $('drawerOverlay').classList.remove('open'); $('cartDrawer').setAttribute('aria-hidden', 'true'); }
-function openCheckout() { if (!cart.length) return toast('Add a product before checkout'); $('checkoutItems').textContent = cart.reduce((s, x) => s + x.qty, 0); $('checkoutTotal').textContent = money(cartTotal()); $('checkoutDialog').showModal(); }
-function toast(message) { $('toast').textContent = message; $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 2400); }
-$('categoryFilter').innerHTML += [...new Set(products.map(p => p.category))].map(c => `<option value="${c}">${c}</option>`).join(''); $('qrImage').src = `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(SITE_URL)}`; $('siteUrl').textContent = SITE_URL;
-renderCategories(); renderProducts(); renderCart(); $('searchInput').oninput = renderProducts; $('categoryFilter').onchange = renderProducts; $('cartOpen').onclick = openDrawer; $('cartClose').onclick = closeDrawer; $('drawerOverlay').onclick = closeDrawer; $('checkoutOpen').onclick = openCheckout; $('dialogClose').onclick = () => $('productDialog').close(); $('checkoutClose').onclick = () => $('checkoutDialog').close();
-$('orderForm').onsubmit = e => { e.preventDefault(); const data = new FormData(e.target); const lines = cart.map(x => { const p = products.find(y => y.id === x.id); return `• ${p.name} (${p.category}) × ${x.qty} = ${money(p.price * x.qty)}`; }).join('\n'); const message = `Namaste Maharani Saree Collection!\n\nNew order request\n\nCustomer: ${data.get('name')}\nMobile: ${data.get('mobile')}\nAddress: ${data.get('address')}\nPIN code: ${data.get('pin')}\n\nSelected products:\n${lines}\n\nTotal amount: ${money(cartTotal())}\n\nPlease confirm availability, final price and delivery details.`; window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(message)}`, '_blank', 'noopener'); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawer(); if ($('productDialog').open) $('productDialog').close(); if ($('checkoutDialog').open) $('checkoutDialog').close(); } });
+
+function saveCart() {
+  localStorage.setItem('maharani-cart', JSON.stringify(cart));
+}
+
+function renderCategories() {
+  $('categoryGrid').innerHTML = categories.map(c => `
+    <button class="category-card" data-category="${c.name}">
+      <img src="${c.image}" alt="${c.label}" loading="lazy">
+      <span>${c.label}</span>
+      <b>Explore →</b>
+    </button>
+  `).join('');
+
+  document.querySelectorAll('.category-card').forEach(b => {
+    b.onclick = () => {
+      $('categoryFilter').value = b.dataset.category;
+      renderProducts();
+      $('shop').scrollIntoView({ behavior: 'smooth' });
+    };
+  });
+}
+
+function renderProducts() {
+  const term = $('searchInput').value.trim().toLowerCase();
+  const category = $('categoryFilter').value;
+
+  const shown = products.filter(p =>
+    (category === 'All' || p.category === category) &&
+    `${p.name} ${p.category}`.toLowerCase().includes(term)
+  );
+
+  $('productGrid').innerHTML = shown.map(p => `
+    <article class="product-card">
+      <button class="product-image" data-detail="${p.id}" aria-label="View ${p.name} details">
+        <img src="${p.image}" alt="${p.name}" loading="lazy">
+        <span class="discount">${Math.round((1 - p.price / p.mrp) * 100)}% off</span>
+      </button>
+
+      <div class="product-info">
+        <p class="product-category">${p.category}</p>
+        <h3>${p.name}</h3>
+
+        <div class="price">
+          <strong>${money(p.price)}</strong>
+          <del>${money(p.mrp)}</del>
+        </div>
+
+        <button class="button button-dark add-button" data-add="${p.id}">
+          Add to bag
+        </button>
+      </div>
+    </article>
+  `).join('');
+
+  $('noResults').hidden = shown.length > 0;
+
+  document.querySelectorAll('[data-add]').forEach(b => {
+    b.onclick = () => addToCart(+b.dataset.add);
+  });
+
+  document.querySelectorAll('[data-detail]').forEach(b => {
+    b.onclick = () => showDetail(+b.dataset.detail);
+  });
+}
+
+function addToCart(id) {
+  const item = cart.find(x => x.id === id);
+
+  if (item) {
+    item.qty++;
+  } else {
+    cart.push({ id, qty: 1 });
+  }
+
+  saveCart();
+  renderCart();
+  openDrawer();
+  toast('Added to your bag');
+}
+
+function changeQty(id, delta) {
+  const item = cart.find(x => x.id === id);
+  if (!item) return;
+
+  item.qty += delta;
+
+  if (item.qty < 1) {
+    cart = cart.filter(x => x.id !== id);
+  }
+
+  saveCart();
+  renderCart();
+}
+
+function cartTotal() {
+  return cart.reduce((sum, x) =>
+    sum + (products.find(p => p.id === x.id)?.price || 0) * x.qty, 0
+  );
+}
+
+function renderCart() {
+  const count = cart.reduce((sum, x) => sum + x.qty, 0);
+
+  $('cartCount').textContent = count;
+  $('cartTotal').textContent = money(cartTotal());
+
+  $('cartItems').innerHTML = cart.length
+    ? cart.map(x => {
+        const p = products.find(y => y.id === x.id);
+
+        return `
+          <div class="cart-item">
+            <img src="${p.image}" alt="">
+            <div>
+              <strong>${p.name}</strong>
+              <small>${money(p.price)} · ${p.category}</small>
+
+              <div class="quantity">
+                <button data-change="${p.id}" data-delta="-1">−</button>
+                <span>${x.qty}</span>
+                <button data-change="${p.id}" data-delta="1">+</button>
+                <button class="remove" data-remove="${p.id}">Remove</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')
+    : `
+      <div class="empty-cart">
+        <span>○</span>
+        <p>Your bag is waiting for something beautiful.</p>
+        <a href="#shop" id="emptyShop">Explore collection</a>
+      </div>
+    `;
+
+  document.querySelectorAll('[data-change]').forEach(b => {
+    b.onclick = () => changeQty(+b.dataset.change, +b.dataset.delta);
+  });
+
+  document.querySelectorAll('[data-remove]').forEach(b => {
+    b.onclick = () => {
+      cart = cart.filter(x => x.id !== +b.dataset.remove);
+      saveCart();
+      renderCart();
+    };
+  });
+
+  const empty = $('emptyShop');
+  if (empty) empty.onclick = closeDrawer;
+}
+
+function showDetail(id) {
+  const p = products.find(x => x.id === id);
+
+  $('productDetail').innerHTML = `
+    <img src="${p.image}" alt="${p.name}">
+
+    <div>
+      <p class="eyebrow">${p.category}</p>
+      <h2>${p.name}</h2>
+      <p>${p.description}</p>
+
+      <div class="price detail-price">
+        <strong>${money(p.price)}</strong>
+        <del>${money(p.mrp)}</del>
+      </div>
+
+      <button class="button button-dark full" data-detail-add="${p.id}">
+        Add to bag
+      </button>
+    </div>
+  `;
+
+  $('productDialog').showModal();
+
+  document.querySelector('[data-detail-add]').onclick = () => {
+    addToCart(id);
+    $('productDialog').close();
+  };
+}
+
+function openDrawer() {
+  $('cartDrawer').classList.add('open');
+  $('drawerOverlay').classList.add('open');
+  $('cartDrawer').setAttribute('aria-hidden', 'false');
+}
+
+function closeDrawer() {
+  $('cartDrawer').classList.remove('open');
+  $('drawerOverlay').classList.remove('open');
+  $('cartDrawer').setAttribute('aria-hidden', 'true');
+}
+
+function openCheckout() {
+  if (!cart.length) {
+    return toast('Add a product before checkout');
+  }
+
+  $('checkoutItems').textContent =
+    cart.reduce((s, x) => s + x.qty, 0);
+
+  $('checkoutTotal').textContent = money(cartTotal());
+
+  $('checkoutDialog').showModal();
+}
+
+function toast(message) {
+  $('toast').textContent = message;
+  $('toast').classList.add('show');
+
+  setTimeout(() => {
+    $('toast').classList.remove('show');
+  }, 2400);
+}
+
+$('categoryFilter').innerHTML +=
+  [...new Set(products.map(p => p.category))]
+    .map(c => `<option value="${c}">${c}</option>`)
+    .join('');
+
+$('qrImage').src =
+  `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(SITE_URL)}`;
+
+$('siteUrl').textContent = SITE_URL;
+
+renderCategories();
+renderProducts();
+renderCart();
+
+$('searchInput').oninput = renderProducts;
+$('categoryFilter').onchange = renderProducts;
+
+$('cartOpen').onclick = openDrawer;
+$('cartClose').onclick = closeDrawer;
+$('drawerOverlay').onclick = closeDrawer;
+
+$('checkoutOpen').onclick = openCheckout;
+
+$('dialogClose').onclick = () =>
+  $('productDialog').close();
+
+$('checkoutClose').onclick = () =>
+  $('checkoutDialog').close();
+
+$('orderForm').onsubmit = e => {
+  e.preventDefault();
+
+  const data = new FormData(e.target);
+
+  const lines = cart.map(x => {
+    const p = products.find(y => y.id === x.id);
+
+    return `• ${p.name} (${p.category}) × ${x.qty} = ${money(p.price * x.qty)}`;
+  }).join('\n');
+
+  const message = `Namaste Maharani Saree Collection!
+
+New order request
+
+Customer: ${data.get('name')}
+Mobile: ${data.get('mobile')}
+Address: ${data.get('address')}
+PIN code: ${data.get('pin')}
+
+Selected products:
+${lines}
+
+Total amount: ${money(cartTotal())}
+
+Please confirm availability, final price and delivery details.`;
+
+  window.open(
+    `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(message)}`,
+    '_blank',
+    'noopener'
+  );
+};
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeDrawer();
+
+    if ($('productDialog').open) {
+      $('productDialog').close();
+    }
+
+    if ($('checkoutDialog').open) {
+      $('checkoutDialog').close();
+    }
+  }
+});
