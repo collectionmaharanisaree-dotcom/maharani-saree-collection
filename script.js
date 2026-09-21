@@ -71,9 +71,36 @@ function rebuildCategories() {
     }));
 }
 
+function showSupabaseError(message) {
+  const existing = document.getElementById('supabase-diagnostic-error');
+  if (existing) existing.remove();
+
+  const errorBox = document.createElement('pre');
+  errorBox.id = 'supabase-diagnostic-error';
+  errorBox.textContent = `Supabase product loading error:\n\n${message}`;
+  errorBox.style.cssText = [
+    'position:fixed',
+    'z-index:2147483647',
+    'top:0',
+    'left:0',
+    'right:0',
+    'margin:0',
+    'padding:16px',
+    'background:#8b0000',
+    'color:#fff',
+    'font:14px/1.45 monospace',
+    'white-space:pre-wrap',
+    'overflow:auto',
+    'max-height:50vh',
+    'box-sizing:border-box'
+  ].join(';');
+  document.body.prepend(errorBox);
+}
+
 async function loadProducts() {
   const requestUrl = `${SUPABASE_URL}/rest/v1/Products?select=id,name,category,price,mrp,image,description`;
-  console.log('[Supabase] Request URL:', requestUrl);
+  let status = 'No HTTP response';
+  let responseBody = 'No response body (the request may have failed before receiving a response).';
 
   try {
     const response = await fetch(
@@ -89,14 +116,12 @@ async function loadProducts() {
       }
     );
 
-    console.log('[Supabase] HTTP status:', response.status, response.statusText);
-
-    const responseBody = await response.text();
-    console.log('[Supabase] Raw response body:', responseBody);
+    status = `${response.status} ${response.statusText}`;
+    responseBody = await response.text();
 
     if (!response.ok) {
       throw new Error(
-        `Supabase request failed with status ${response.status} ${response.statusText}: ${responseBody}`
+        `Supabase request failed: ${status}\nResponse body: ${responseBody}`
       );
     }
 
@@ -117,9 +142,16 @@ async function loadProducts() {
       mrp: Number(p.mrp)
     }));
   } catch (error) {
-    console.error('[Supabase] Complete fetch error:', error);
-    products = [...fallbackProducts];
-    console.warn('Using fallback products because Supabase could not be loaded.', error);
+    const diagnosticMessage = [
+      `Request URL: ${requestUrl}`,
+      `HTTP status: ${status}`,
+      `Response body: ${responseBody}`,
+      `Fetch error: ${error?.stack || error?.message || String(error)}`
+    ].join('\n');
+
+    console.error('[Supabase] Complete request failure:', diagnosticMessage, error);
+    products = [];
+    showSupabaseError(diagnosticMessage);
   }
 }
 
