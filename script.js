@@ -74,7 +74,7 @@ function rebuildCategories() {
 async function loadProducts() {
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/Products?select=id,name,category,price,mrp,image,description`,
+      `${SUPABASE_URL}/rest/v1/products?select=id,name,category,price,mrp,image,description`,
       {
         method: 'GET',
         cache: 'no-store',
