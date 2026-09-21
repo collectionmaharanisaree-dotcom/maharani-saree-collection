@@ -72,7 +72,7 @@ function rebuildCategories() {
 }
 
 async function loadProducts() {
-  const requestUrl = `${SUPABASE_URL}/rest/v1/products?select=id,name,category,price,mrp,image,description`;
+  const requestUrl = `${SUPABASE_URL}/rest/v1/Products?select=id,name,category,price,mrp,image,description`;
   console.log('[Supabase] Request URL:', requestUrl);
 
   try {
