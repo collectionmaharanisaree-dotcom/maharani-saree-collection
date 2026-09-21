@@ -1,5 +1,6 @@
 const SITE_URL = 'https://collectionmaharanisaree-dotcom.github.io/maharani-saree-collection/';
 const SUPABASE_URL = 'https://rqzaibfdwczpqfrswcvg.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_oPs57ONamrOxneH9jsxbvw__PzUetUG';
 const WHATSAPP = '919097900814';
 
 const products = [
