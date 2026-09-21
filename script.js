@@ -23,7 +23,7 @@ async function loadProducts() {
   try {
     // Send only the required publishable API key. Omitting Authorization avoids
     // an unnecessary browser preflight while retaining Supabase REST access.
-    const response = await fetch(requestUrl, { method: 'GET', cache: 'no-store', headers: { apikey: SUPABASE_ANON_KEY, Accept: 'application/json' } });
+const response = await fetch(requestUrl, { method: 'GET', cache: 'no-store' });
     status = `${response.status} ${response.statusText}`;
     responseBody = await response.text();
     if (!response.ok) throw new Error(`Supabase request failed: ${status}\nResponse body: ${responseBody}`);
