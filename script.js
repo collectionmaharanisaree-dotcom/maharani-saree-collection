@@ -97,30 +97,6 @@ function showSupabaseError(message) {
   document.body.prepend(errorBox);
 }
 
-function showSupabaseSuccess(count, sareePrice) {
-  const existing = document.getElementById('supabase-diagnostic-success');
-  if (existing) existing.remove();
-
-  const successBox = document.createElement('pre');
-  successBox.id = 'supabase-diagnostic-success';
-  successBox.textContent = `Supabase diagnostic succeeded\nProduct count: ${count}\nSaree price: ${sareePrice == null ? 'Not found' : money(sareePrice)}`;
-  successBox.style.cssText = [
-    'position:fixed',
-    'z-index:2147483647',
-    'top:0',
-    'left:0',
-    'right:0',
-    'margin:0',
-    'padding:16px',
-    'background:#146c2e',
-    'color:#fff',
-    'font:14px/1.45 monospace',
-    'white-space:pre-wrap',
-    'box-sizing:border-box'
-  ].join(';');
-  document.body.prepend(successBox);
-}
-
 async function loadProducts() {
   const requestUrl = 'https://rqzaibfdwczpqfrswcvg.supabase.co/rest/v1/Products?select=*';
   let status = 'No HTTP response';
@@ -165,12 +141,6 @@ async function loadProducts() {
       price: Number(p.price),
       mrp: Number(p.mrp)
     }));
-
-    const saree = products.find(p =>
-      String(p.name || '').toLowerCase() === 'saree' ||
-      String(p.category || '').toLowerCase() === 'saree'
-    );
-    showSupabaseSuccess(products.length, saree?.price);
   } catch (error) {
     const diagnosticMessage = [
       `Request URL: ${requestUrl}`,
