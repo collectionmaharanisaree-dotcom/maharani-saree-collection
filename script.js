@@ -76,9 +76,12 @@ async function loadProducts() {
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/Products?select=id,name,category,price,mrp,image,description`,
       {
+        method: 'GET',
+        cache: 'no-store',
         headers: {
           apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Accept: 'application/json'
         }
       }
     );
@@ -89,22 +92,20 @@ async function loadProducts() {
 
     const data = await response.json();
 
+    if (!Array.isArray(data)) {
+      throw new Error('Supabase returned an invalid products response');
+    }
+
     products = data.map(p => ({
       ...p,
       price: Number(p.price),
       mrp: Number(p.mrp)
     }));
-
-    rebuildCategories();
-    renderCategoryFilter();
-    renderCategories();
-    renderProducts();
   } catch (error) {
+    products = [...fallbackProducts];
     console.warn('Using fallback products because Supabase could not be loaded.', error);
   }
 }
-
-rebuildCategories();
 
 let cart = JSON.parse(localStorage.getItem('maharani-cart') || '[]');
 
@@ -335,46 +336,48 @@ function toast(message) {
   }, 2400);
 }
 
-renderCategoryFilter();
+async function init() {
+  await loadProducts();
+  rebuildCategories();
+  renderCategoryFilter();
 
-$('qrImage').src =
-  `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(SITE_URL)}`;
+  $('qrImage').src =
+    `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(SITE_URL)}`;
 
-$('siteUrl').textContent = SITE_URL;
+  $('siteUrl').textContent = SITE_URL;
 
-renderCategories();
-renderProducts();
-renderCart();
-loadProducts();
+  renderCategories();
+  renderProducts();
+  renderCart();
 
-$('searchInput').oninput = renderProducts;
-$('categoryFilter').onchange = renderProducts;
+  $('searchInput').oninput = renderProducts;
+  $('categoryFilter').onchange = renderProducts;
 
-$('cartOpen').onclick = openDrawer;
-$('cartClose').onclick = closeDrawer;
-$('drawerOverlay').onclick = closeDrawer;
+  $('cartOpen').onclick = openDrawer;
+  $('cartClose').onclick = closeDrawer;
+  $('drawerOverlay').onclick = closeDrawer;
 
-$('checkoutOpen').onclick = openCheckout;
+  $('checkoutOpen').onclick = openCheckout;
 
-$('dialogClose').onclick = () =>
-  $('productDialog').close();
+  $('dialogClose').onclick = () =>
+    $('productDialog').close();
 
-$('checkoutClose').onclick = () =>
-  $('checkoutDialog').close();
+  $('checkoutClose').onclick = () =>
+    $('checkoutDialog').close();
 
-$('orderForm').onsubmit = e => {
-  e.preventDefault();
+  $('orderForm').onsubmit = e => {
+    e.preventDefault();
 
-  const data = new FormData(e.target);
+    const data = new FormData(e.target);
 
-  const lines = cart.map(x => {
-    const p = products.find(y => y.id === x.id);
-    if (!p) return '';
+    const lines = cart.map(x => {
+      const p = products.find(y => y.id === x.id);
+      if (!p) return '';
 
-    return `• ${p.name} (${p.category}) × ${x.qty} = ${money(p.price * x.qty)}`;
-  }).filter(Boolean).join('\n');
+      return `• ${p.name} (${p.category}) × ${x.qty} = ${money(p.price * x.qty)}`;
+    }).filter(Boolean).join('\n');
 
-  const message = `Namaste Maharani Saree Collection!
+    const message = `Namaste Maharani Saree Collection!
 
 New order request
 
@@ -390,23 +393,26 @@ Total amount: ${money(cartTotal())}
 
 Please confirm availability, final price and delivery details.`;
 
-  window.open(
-    `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(message)}`,
-    '_blank',
-    'noopener'
-  );
-};
+    window.open(
+      `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(message)}`,
+      '_blank',
+      'noopener'
+    );
+  };
 
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    closeDrawer();
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeDrawer();
 
-    if ($('productDialog').open) {
-      $('productDialog').close();
+      if ($('productDialog').open) {
+        $('productDialog').close();
+      }
+
+      if ($('checkoutDialog').open) {
+        $('checkoutDialog').close();
+      }
     }
+  });
+}
 
-    if ($('checkoutDialog').open) {
-      $('checkoutDialog').close();
-    }
-  }
-});
+init();
