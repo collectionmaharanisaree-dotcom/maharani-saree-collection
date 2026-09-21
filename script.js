@@ -28,7 +28,7 @@ const response = await fetch(requestUrl, { method: 'GET', cache: 'no-store' });
     if (!response.ok) throw new Error(`Supabase request failed: ${status}\nResponse body: ${responseBody}`);
     const data = JSON.parse(responseBody);
     if (!Array.isArray(data)) throw new Error('Supabase returned an invalid products response');
- products = data.map(row => normalizeProduct({
+images: row.Images,
   id: row.id,
   name: row.Name,
   category: row.Category,
