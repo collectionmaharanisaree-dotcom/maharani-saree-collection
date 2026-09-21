@@ -17,7 +17,7 @@ function normalizeProduct(row) { return { id: row.id, name: row.name, category: 
 function rebuildCategories() { const labels = { Saree: 'Sarees', Lehnga: 'Lehngas', Suit: 'Suits', Kurti: 'Kurtis', Palazo: 'Palazo' }; categories = [...new Set(products.map(p => p.category).filter(Boolean))].map(name => ({ name, label: labels[name] || name, image: products.find(p => p.category === name)?.image || FALLBACK_IMAGE })); }
 function showSupabaseError(message) { const old = document.getElementById('supabase-diagnostic-error'); if (old) old.remove(); const box = document.createElement('pre'); box.id = 'supabase-diagnostic-error'; box.textContent = `Supabase product loading error:\n\n${message}`; box.style.cssText = ['position:fixed','z-index:2147483647','top:0','left:0','right:0','margin:0','padding:16px','background:#8b0000','color:#fff','font:14px/1.45 monospace','white-space:pre-wrap','overflow:auto','max-height:50vh','box-sizing:border-box'].join(';'); document.body.prepend(box); }
 async function loadProducts() {
-  const requestUrl = `${SUPABASE_URL}/rest/v1/Products?select=*`;
+  const requestUrl = 'https://rqzaibfdwczpqfrswcvg.supabase.co/functions/v1/bright-task';
   let status = 'No HTTP response';
   let responseBody = 'No response body (the request may have failed before receiving a response).';
   try {
@@ -29,7 +29,15 @@ async function loadProducts() {
     if (!response.ok) throw new Error(`Supabase request failed: ${status}\nResponse body: ${responseBody}`);
     const data = JSON.parse(responseBody);
     if (!Array.isArray(data)) throw new Error('Supabase returned an invalid products response');
-    products = data.map(row => normalizeProduct({ id: row.id, name: row.name, category: row.category, price: row.price, mrp: row.mrp, image: row.image, description: row.description }));
+ products = data.map(row => normalizeProduct({
+  id: row.id,
+  name: row.Name,
+  category: row.Category,
+  price: row.Price,
+  mrp: row.Mrp,
+  image: row.Image,
+  description: row.Description
+}));
   } catch (error) {
     const diagnosticMessage = [`Request URL: ${requestUrl}`, `HTTP status: ${status}`, `Response body: ${responseBody}`, `Fetch error: ${error?.stack || error?.message || String(error)}`].join('\n');
     console.error('[Supabase] Complete request failure:', diagnosticMessage, error); products = []; showSupabaseError(diagnosticMessage);
