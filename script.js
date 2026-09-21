@@ -3,7 +3,7 @@ const SUPABASE_URL = 'https://rqzaibfdwczpqfrswcvg.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_oPs57ONamrOxneH9jsxbvw__PzUetUG';
 const WHATSAPP = '919097900814';
 
-const products = [
+const fallbackProducts = [
   {
     id: 1,
     name: 'Saree',
@@ -51,13 +51,60 @@ const products = [
   }
 ];
 
-const categories = [
-  { name: 'Saree', label: 'Sarees', image: products[0].image },
-  { name: 'Lehnga', label: 'Lehngas', image: products[1].image },
-  { name: 'Suit', label: 'Suits', image: products[2].image },
-  { name: 'Kurti', label: 'Kurtis', image: products[3].image },
-  { name: 'Palazo', label: 'Palazo', image: products[4].image }
-];
+let products = [...fallbackProducts];
+let categories = [];
+
+function rebuildCategories() {
+  const labels = {
+    Saree: 'Sarees',
+    Lehnga: 'Lehngas',
+    Suit: 'Suits',
+    Kurti: 'Kurtis',
+    Palazo: 'Palazo'
+  };
+
+  categories = [...new Set(products.map(p => p.category).filter(Boolean))]
+    .map(name => ({
+      name,
+      label: labels[name] || name,
+      image: products.find(p => p.category === name)?.image || ''
+    }));
+}
+
+async function loadProducts() {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/Products?select=id,name,category,price,mrp,image,description`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Supabase request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    products = data.map(p => ({
+      ...p,
+      price: Number(p.price),
+      mrp: Number(p.mrp)
+    }));
+
+    rebuildCategories();
+    renderCategoryFilter();
+    renderCategories();
+    renderProducts();
+  } catch (error) {
+    console.warn('Using fallback products because Supabase could not be loaded.', error);
+  }
+}
+
+rebuildCategories();
 
 let cart = JSON.parse(localStorage.getItem('maharani-cart') || '[]');
 
@@ -66,6 +113,13 @@ const $ = id => document.getElementById(id);
 
 function saveCart() {
   localStorage.setItem('maharani-cart', JSON.stringify(cart));
+}
+
+function renderCategoryFilter() {
+  const selected = $('categoryFilter').value || 'All';
+  $('categoryFilter').innerHTML = '<option value="All">All</option>' +
+    categories.map(c => `<option value="${c.name}">${c.label}</option>`).join('');
+  $('categoryFilter').value = categories.some(c => c.name === selected) ? selected : 'All';
 }
 
 function renderCategories() {
@@ -173,6 +227,7 @@ function renderCart() {
   $('cartItems').innerHTML = cart.length
     ? cart.map(x => {
         const p = products.find(y => y.id === x.id);
+        if (!p) return '';
 
         return `
           <div class="cart-item">
@@ -217,6 +272,7 @@ function renderCart() {
 
 function showDetail(id) {
   const p = products.find(x => x.id === id);
+  if (!p) return;
 
   $('productDetail').innerHTML = `
     <img src="${p.image}" alt="${p.name}">
@@ -279,10 +335,7 @@ function toast(message) {
   }, 2400);
 }
 
-$('categoryFilter').innerHTML +=
-  [...new Set(products.map(p => p.category))]
-    .map(c => `<option value="${c}">${c}</option>`)
-    .join('');
+renderCategoryFilter();
 
 $('qrImage').src =
   `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(SITE_URL)}`;
@@ -292,6 +345,7 @@ $('siteUrl').textContent = SITE_URL;
 renderCategories();
 renderProducts();
 renderCart();
+loadProducts();
 
 $('searchInput').oninput = renderProducts;
 $('categoryFilter').onchange = renderProducts;
@@ -315,9 +369,10 @@ $('orderForm').onsubmit = e => {
 
   const lines = cart.map(x => {
     const p = products.find(y => y.id === x.id);
+    if (!p) return '';
 
     return `• ${p.name} (${p.category}) × ${x.qty} = ${money(p.price * x.qty)}`;
-  }).join('\n');
+  }).filter(Boolean).join('\n');
 
   const message = `Namaste Maharani Saree Collection!
 
