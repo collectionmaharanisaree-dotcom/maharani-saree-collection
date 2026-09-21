@@ -15,26 +15,30 @@ const fallbackProducts = [
 let products = [...fallbackProducts];
 let categories = [];
 
-const toNumber = (value, fallback = 0) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
+const toNumber = value => {
+  const number = typeof value === 'number' ? value : Number(String(value ?? '').trim());
+  return Number.isFinite(number) ? number : 0;
 };
-const safeText = (value, fallback = '') => value == null ? fallback : String(value);
-const safeImage = value => safeText(value, '').trim() || FALLBACK_IMAGE;
-const normalizeProduct = p => ({
-  id: p.id,
-  name: safeText(p.name, 'Product'),
-  category: safeText(p.category, 'Collection'),
-  price: toNumber(p.price),
-  mrp: toNumber(p.mrp),
-  image: safeImage(p.image),
-  description: safeText(p.description, 'Beautiful addition to your collection.')
-});
+const safeImage = value => typeof value === 'string' && value.trim() ? value.trim() : FALLBACK_IMAGE;
+
+function normalizeProduct(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    price: toNumber(row.price),
+    mrp: toNumber(row.mrp),
+    image: safeImage(row.image),
+    description: row.description
+  };
+}
 
 function rebuildCategories() {
   const labels = { Saree: 'Sarees', Lehnga: 'Lehngas', Suit: 'Suits', Kurti: 'Kurtis', Palazo: 'Palazo' };
   categories = [...new Set(products.map(p => p.category).filter(Boolean))].map(name => ({
-    name, label: labels[name] || name, image: products.find(p => p.category === name)?.image || FALLBACK_IMAGE
+    name,
+    label: labels[name] || name,
+    image: products.find(p => p.category === name)?.image || FALLBACK_IMAGE
   }));
 }
 
@@ -57,10 +61,19 @@ async function loadProducts() {
     status = `${response.status} ${response.statusText}`;
     responseBody = await response.text();
     if (!response.ok) throw new Error(`Supabase request failed: ${status}\nResponse body: ${responseBody}`);
-    let data;
-    try { data = JSON.parse(responseBody); } catch { throw new Error('Supabase returned a non-JSON response'); }
+    const data = JSON.parse(responseBody);
     if (!Array.isArray(data)) throw new Error('Supabase returned an invalid products response');
-    products = data.map(normalizeProduct);
+
+    // Assign the REST rows directly to the global product list using the exact table columns.
+    products = data.map(row => normalizeProduct({
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      price: row.price,
+      mrp: row.mrp,
+      image: row.image,
+      description: row.description
+    }));
   } catch (error) {
     const diagnosticMessage = [`Request URL: ${requestUrl}`,`HTTP status: ${status}`,`Response body: ${responseBody}`,`Fetch error: ${error?.stack || error?.message || String(error)}`].join('\n');
     console.error('[Supabase] Complete request failure:', diagnosticMessage, error);
@@ -72,7 +85,6 @@ async function loadProducts() {
 let cart = JSON.parse(localStorage.getItem('maharani-cart') || '[]');
 const money = n => `₹${toNumber(n).toLocaleString('en-IN')}`;
 const $ = id => document.getElementById(id);
-
 function saveCart() { localStorage.setItem('maharani-cart', JSON.stringify(cart)); }
 
 function renderCategoryFilter() {
@@ -80,12 +92,10 @@ function renderCategoryFilter() {
   $('categoryFilter').innerHTML = '<option value="All">All</option>' + categories.map(c => `<option value="${c.name}">${c.label}</option>`).join('');
   $('categoryFilter').value = categories.some(c => c.name === selected) ? selected : 'All';
 }
-
 function renderCategories() {
   $('categoryGrid').innerHTML = categories.map(c => `<button class="category-card" data-category="${c.name}"><img src="${c.image}" alt="${c.label}" loading="lazy"><span>${c.label}</span><b>Explore →</b></button>`).join('');
   document.querySelectorAll('.category-card').forEach(b => { b.onclick = () => { $('categoryFilter').value = b.dataset.category; renderProducts(); $('shop').scrollIntoView({ behavior: 'smooth' }); }; });
 }
-
 function renderProducts() {
   const term = $('searchInput').value.trim().toLowerCase();
   const category = $('categoryFilter').value;
@@ -98,55 +108,27 @@ function renderProducts() {
   document.querySelectorAll('[data-add]').forEach(b => { b.onclick = () => addToCart(b.dataset.add); });
   document.querySelectorAll('[data-detail]').forEach(b => { b.onclick = () => showDetail(b.dataset.detail); });
 }
-
 function findProduct(id) { return products.find(p => String(p.id) === String(id)); }
-function addToCart(id) {
-  const item = cart.find(x => String(x.id) === String(id));
-  if (item) item.qty++; else cart.push({ id, qty: 1 });
-  saveCart(); renderCart(); openDrawer(); toast('Added to your bag');
-}
-function changeQty(id, delta) {
-  const item = cart.find(x => String(x.id) === String(id));
-  if (!item) return;
-  item.qty += delta;
-  if (item.qty < 1) cart = cart.filter(x => String(x.id) !== String(id));
-  saveCart(); renderCart();
-}
+function addToCart(id) { const item = cart.find(x => String(x.id) === String(id)); if (item) item.qty++; else cart.push({ id, qty: 1 }); saveCart(); renderCart(); openDrawer(); toast('Added to your bag'); }
+function changeQty(id, delta) { const item = cart.find(x => String(x.id) === String(id)); if (!item) return; item.qty += Number(delta); if (item.qty < 1) cart = cart.filter(x => String(x.id) !== String(id)); saveCart(); renderCart(); }
 function cartTotal() { return cart.reduce((sum, x) => sum + toNumber(findProduct(x.id)?.price) * toNumber(x.qty), 0); }
-
 function renderCart() {
   const count = cart.reduce((sum, x) => sum + toNumber(x.qty), 0);
-  $('cartCount').textContent = count;
-  $('cartTotal').textContent = money(cartTotal());
-  $('cartItems').innerHTML = cart.length ? cart.map(x => {
-    const p = findProduct(x.id);
-    if (!p) return '';
-    return `<div class="cart-item"><img src="${p.image}" alt=""><div><strong>${p.name}</strong><small>${money(p.price)} · ${p.category}</small><div class="quantity"><button data-change="${p.id}" data-delta="-1">−</button><span>${toNumber(x.qty)}</span><button data-change="${p.id}" data-delta="1">+</button><button class="remove" data-remove="${p.id}">Remove</button></div></div></div>`;
-  }).join('') : `<div class="empty-cart"><span>○</span><p>Your bag is waiting for something beautiful.</p><a href="#shop" id="emptyShop">Explore collection</a></div>`;
+  $('cartCount').textContent = count; $('cartTotal').textContent = money(cartTotal());
+  $('cartItems').innerHTML = cart.length ? cart.map(x => { const p = findProduct(x.id); if (!p) return ''; return `<div class="cart-item"><img src="${p.image}" alt=""><div><strong>${p.name}</strong><small>${money(p.price)} · ${p.category}</small><div class="quantity"><button data-change="${p.id}" data-delta="-1">−</button><span>${toNumber(x.qty)}</span><button data-change="${p.id}" data-delta="1">+</button><button class="remove" data-remove="${p.id}">Remove</button></div></div></div>`; }).join('') : `<div class="empty-cart"><span>○</span><p>Your bag is waiting for something beautiful.</p><a href="#shop" id="emptyShop">Explore collection</a></div>`;
   document.querySelectorAll('[data-change]').forEach(b => { b.onclick = () => changeQty(b.dataset.change, b.dataset.delta); });
   document.querySelectorAll('[data-remove]').forEach(b => { b.onclick = () => { cart = cart.filter(x => String(x.id) !== String(b.dataset.remove)); saveCart(); renderCart(); }; });
   const empty = $('emptyShop'); if (empty) empty.onclick = closeDrawer;
 }
-
-function showDetail(id) {
-  const p = findProduct(id);
-  if (!p) return;
-  $('productDetail').innerHTML = `<img src="${p.image}" alt="${p.name}"><div><p class="eyebrow">${p.category}</p><h2>${p.name}</h2><p>${p.description}</p><div class="price detail-price"><strong>${money(p.price)}</strong><del>${money(p.mrp)}</del></div><button class="button button-dark full" data-detail-add="${p.id}">Add to bag</button></div>`;
-  $('productDialog').showModal();
-  document.querySelector('[data-detail-add]').onclick = () => { addToCart(id); $('productDialog').close(); };
-}
+function showDetail(id) { const p = findProduct(id); if (!p) return; $('productDetail').innerHTML = `<img src="${p.image}" alt="${p.name}"><div><p class="eyebrow">${p.category}</p><h2>${p.name}</h2><p>${p.description}</p><div class="price detail-price"><strong>${money(p.price)}</strong><del>${money(p.mrp)}</del></div><button class="button button-dark full" data-detail-add="${p.id}">Add to bag</button></div>`; $('productDialog').showModal(); document.querySelector('[data-detail-add]').onclick = () => { addToCart(id); $('productDialog').close(); }; }
 function openDrawer() { $('cartDrawer').classList.add('open'); $('drawerOverlay').classList.add('open'); $('cartDrawer').setAttribute('aria-hidden', 'false'); }
 function closeDrawer() { $('cartDrawer').classList.remove('open'); $('drawerOverlay').classList.remove('open'); $('cartDrawer').setAttribute('aria-hidden', 'true'); }
-function openCheckout() {
-  if (!cart.length) return toast('Add a product before checkout');
-  $('checkoutItems').textContent = cart.reduce((s, x) => s + toNumber(x.qty), 0);
-  $('checkoutTotal').textContent = money(cartTotal());
-  $('checkoutDialog').showModal();
-}
+function openCheckout() { if (!cart.length) return toast('Add a product before checkout'); $('checkoutItems').textContent = cart.reduce((s, x) => s + toNumber(x.qty), 0); $('checkoutTotal').textContent = money(cartTotal()); $('checkoutDialog').showModal(); }
 function toast(message) { $('toast').textContent = message; $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 2400); }
 
 async function init() {
-  await loadProducts(); rebuildCategories(); renderCategoryFilter();
+  await loadProducts();
+  rebuildCategories(); renderCategoryFilter();
   $('qrImage').src = `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(SITE_URL)}`;
   $('siteUrl').textContent = SITE_URL; renderCategories(); renderProducts(); renderCart();
   $('searchInput').oninput = renderProducts; $('categoryFilter').onchange = renderProducts;
