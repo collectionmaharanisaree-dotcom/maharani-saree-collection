@@ -12,8 +12,7 @@ const fallbackProducts = [
 ];
 let products = [...fallbackProducts], categories = [];
 const toNumber = value => { const n = typeof value === 'number' ? value : Number(String(value ?? '').trim()); return Number.isFinite(n) ? n : 0; };
-const safeImage = value => typeof value === 'string' && value.trim() ? value.trim() : FALLBACK_IMAGE;
-function normalizeProduct(row) { return { id: row.id, name: row.name, category: row.category, price: toNumber(row.price), mrp: toNumber(row.mrp), image: safeImage(row.image), description: row.description }; }
+const safeImage = value => typeof value === 'string' && value.trim() ? value.trim() : FALLBACK_IMAGE;     function normalizeProduct(row) { return { id: row.id, name: row.name, category: row.category, price: toNumber(row.price), mrp: toNumber(row.mrp), image: safeImage(row.image), images: row.images || row.Images || '', description: row.description }; }
 function rebuildCategories() { const labels = { Saree: 'Sarees', Lehnga: 'Lehngas', Suit: 'Suits', Kurti: 'Kurtis', Palazo: 'Palazo' }; categories = [...new Set(products.map(p => p.category).filter(Boolean))].map(name => ({ name, label: labels[name] || name, image: products.find(p => p.category === name)?.image || FALLBACK_IMAGE })); }
 function showSupabaseError(message) { const old = document.getElementById('supabase-diagnostic-error'); if (old) old.remove(); const box = document.createElement('pre'); box.id = 'supabase-diagnostic-error'; box.textContent = `Supabase product loading error:\n\n${message}`; box.style.cssText = ['position:fixed','z-index:2147483647','top:0','left:0','right:0','margin:0','padding:16px','background:#8b0000','color:#fff','font:14px/1.45 monospace','white-space:pre-wrap','overflow:auto','max-height:50vh','box-sizing:border-box'].join(';'); document.body.prepend(box); }
 async function loadProducts() {
