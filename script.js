@@ -72,9 +72,12 @@ function rebuildCategories() {
 }
 
 async function loadProducts() {
+  const requestUrl = `${SUPABASE_URL}/rest/v1/products?select=id,name,category,price,mrp,image,description`;
+  console.log('[Supabase] Request URL:', requestUrl);
+
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/products?select=id,name,category,price,mrp,image,description`,
+      requestUrl,
       {
         method: 'GET',
         cache: 'no-store',
@@ -86,11 +89,23 @@ async function loadProducts() {
       }
     );
 
+    console.log('[Supabase] HTTP status:', response.status, response.statusText);
+
+    const responseBody = await response.text();
+    console.log('[Supabase] Raw response body:', responseBody);
+
     if (!response.ok) {
-      throw new Error(`Supabase request failed with status ${response.status}`);
+      throw new Error(
+        `Supabase request failed with status ${response.status} ${response.statusText}: ${responseBody}`
+      );
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = JSON.parse(responseBody);
+    } catch {
+      throw new Error('Supabase returned a non-JSON response');
+    }
 
     if (!Array.isArray(data)) {
       throw new Error('Supabase returned an invalid products response');
@@ -102,6 +117,7 @@ async function loadProducts() {
       mrp: Number(p.mrp)
     }));
   } catch (error) {
+    console.error('[Supabase] Complete fetch error:', error);
     products = [...fallbackProducts];
     console.warn('Using fallback products because Supabase could not be loaded.', error);
   }
