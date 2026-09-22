@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://collectionmaharanisaree-dotcom.github.io/maharani-saree-collection/sitemap.xml
