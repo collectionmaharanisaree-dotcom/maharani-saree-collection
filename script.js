@@ -155,7 +155,7 @@ function injectPasswordReset(){
     if(a.length<6){msg.textContent='Password must be at least 6 characters.';return;}
     if(a!==b){msg.textContent='Passwords do not match.';return;}
     msg.textContent='Updating password…';
-    const {error}=await supabase.auth.updateUser({password:a});
+    const {error}=await (await getSupabaseClient()).auth.updateUser({password:a});
     if(error){msg.textContent=error.message;return;}
     msg.textContent='Password updated successfully ✓';
     setTimeout(()=>{panel.remove();location.hash='admin';},900);
@@ -201,9 +201,9 @@ async function uploadAdminPhotos(files){
   const urls=[];
   for(const file of files){
     const path=storagePath(file);
-    const {error}=await supabase.storage.from(STORAGE_BUCKET).upload(path,file,{upsert:false,contentType:file.type||'image/jpeg'});
+    const {error}=await (await getSupabaseClient()).storage.from(STORAGE_BUCKET).upload(path,file,{upsert:false,contentType:file.type||'image/jpeg'});
     if(error)throw error;
-    const {data}=supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    const {data}=(await getSupabaseClient()).storage.from(STORAGE_BUCKET).getPublicUrl(path);
     urls.push(data.publicUrl);
   }
   return urls;
