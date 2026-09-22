@@ -226,8 +226,9 @@ async function saveAdminProduct(e){
     if(!image)image=FALLBACK_IMAGE;
     const payload={Name:name,Category:category,Price:price,Mrp:mrp,Image:image,images:JSON.stringify(images),Description:description};
     let result;
-    if(id) result=await getSupabaseClient().then(client=>client.from('Products')).update(payload).eq('id',id).select().single();
-    else result=await getSupabaseClient().then(client=>client.from('Products')).insert(payload).select().single();
+    const client=await getSupabaseClient();
+    if(id) result=await client.from('Products').update(payload).eq('id',id).select().single();
+    else result=await client.from('Products').insert(payload).select().single();
     if(result.error)throw result.error;
     msg.textContent='Product saved successfully ✓';await refreshAdminList();await loadProducts();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();setTimeout(resetAdminForm,600);
   }catch(error){console.error(error);msg.textContent='Save failed: '+(error.message||error);}
