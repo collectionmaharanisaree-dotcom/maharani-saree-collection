@@ -6,9 +6,10 @@ const STORAGE_BUCKET = 'product images';
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=700&q=80';
 
 const OFFER_END = '2026-09-30T23:59:59+05:30';
+window.__MAHARANI_OFFER_END=OFFER_END;
 let offerTimer = null;
 function formatCountdown(ms){const total=Math.max(0,Math.floor(ms/1000));const d=Math.floor(total/86400),h=Math.floor((total%86400)/3600),m=Math.floor((total%3600)/60),s=total%60;const pad=n=>String(n).padStart(2,'0');return d>0?d+'d '+pad(h)+':'+pad(m)+':'+pad(s):pad(h)+':'+pad(m)+':'+pad(s);}
-function startOfferCountdown(){const tick=()=>{const left=new Date(OFFER_END).getTime()-Date.now(),text=left>0?formatCountdown(left):'Offer ended',a=$('offerCountdown'),b=$('offerCountdownLarge'),msg=$('offerMessage');if(a)a.textContent=text;if(b)b.textContent=text;if(msg)msg.textContent=left>0?'जल्दी करें — Dhamaka Offer अभी LIVE है':'आज का offer समाप्त हो गया है';if(left<=0&&offerTimer){clearInterval(offerTimer);offerTimer=null;}};tick();if(offerTimer)clearInterval(offerTimer);offerTimer=setInterval(tick,1000);}
+function startOfferCountdown(){const tick=()=>{const left=new Date(window.__MAHARANI_OFFER_END||OFFER_END).getTime()-Date.now(),text=left>0?formatCountdown(left):'Offer ended',a=$('offerCountdown'),b=$('offerCountdownLarge'),msg=$('offerMessage');if(a)a.textContent=text;if(b)b.textContent=text;if(msg)msg.textContent=left>0?'जल्दी करें — Dhamaka Offer अभी LIVE है':'आज का offer समाप्त हो गया है';if(left<=0&&offerTimer){clearInterval(offerTimer);offerTimer=null;}};tick();if(offerTimer)clearInterval(offerTimer);offerTimer=setInterval(tick,1000);}
 function initOfferNotification(){const bar=$('offerTicker'),close=$('offerNotifyClose');if(!bar)return;close.onclick=()=>{bar.classList.add('offer-hidden');setTimeout(()=>bar.remove(),250);};setTimeout(()=>{if(document.body.contains(bar))bar.classList.add('offer-pulse');},1200);startOfferCountdown();}
 
 const fallbackProducts = [
@@ -19,7 +20,7 @@ const fallbackProducts = [
   {id:5,name:'Palazo',category:'Palazo',price:699,mrp:999,image:'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=700&q=80',images:[],description:'Comfortable and stylish palazo collection.'}
 ];
 
-let products = [], categories = [], supabaseClient = null, adminProducts = [];
+let products = [], categories = [], supabaseClient = null, adminProducts = [], siteSettings = null, siteSettingsId = null;
 let customAdminCategories = JSON.parse(localStorage.getItem('maharani-custom-categories') || '[]');
 
 async function getSupabaseClient(){
@@ -72,13 +73,40 @@ async function loadProducts() {
     if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
     const data = JSON.parse(body);
     if(!Array.isArray(data)) throw new Error('Invalid products response');
-    products = data.map(normalizeProduct);
+    siteSettings = data.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
+    siteSettingsId = siteSettings?.id || null;
+    products = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
+    applySiteSettings();
   } catch(error) {
     console.error(error);
     products = [];
     showSupabaseError(String(error?.message || error));
   }
 }
+function applyText(id,value){const el=$(id);if(el&&value!=null)el.textContent=value;}
+function applySiteSettings(){
+  if(!siteSettings)return;
+  let cfg={}; try{cfg=JSON.parse(siteSettings.Description||'{}')}catch(e){cfg={};}
+  const set=(id,key)=>{if(cfg[key]!==undefined)applyText(id,cfg[key]);};
+  set('heroEyebrow','heroEyebrow');set('heroTitle','heroTitle');set('heroText','heroText');set('heroNoteTitle','heroNoteTitle');set('heroNoteText','heroNoteText');set('offerEyebrow','offerEyebrow');set('offerTitle','offerTitle');set('offerIntro','offerIntro');set('dhamakaTitle','dhamakaTitle');set('dhamakaText','dhamakaText');set('contactEyebrow','contactEyebrow');set('contactTitle','contactTitle');set('contactText','contactText');set('contactAddress','address');set('contactProprietor','proprietor');set('contactGst','gst');
+  const img=$('shopBannerImage'); if(img&&siteSettings.Image){img.src=siteSettings.Image;img.classList.add('shop-banner-image');}
+  const phone=cfg.phone||'9097900814';const ph=$('contactPhone');if(ph){ph.textContent=phone;ph.href='tel:'+phone.replace(/[^0-9+]/g,'');}
+  const title=cfg.announcement||'🔥 Dhamaka Offer • Shopping ₹1,999+ पर Gift Chance • Derni Bazar, Saran';const ann=document.querySelector('.announcement');if(ann)ann.textContent=title;
+  const ticker=$('offerTicker');if(ticker&&cfg.offerTitle){const strong=ticker.querySelector('strong');if(strong)strong.textContent=cfg.offerTitle;}
+  if(cfg.offerEnd){window.__MAHARANI_OFFER_END=cfg.offerEnd;startOfferCountdown();}
+}
+function getSettingsConfig(){let cfg={};try{cfg=JSON.parse(siteSettings?.Description||'{}')}catch(e){}return cfg;}
+function injectSiteSettings(){
+  const box=$('siteSettings');if(!box)return;
+  const cfg=getSettingsConfig();
+  box.innerHTML='<div class="admin-settings-card"><h3>🔥 Dhamaka Offer + Homepage Control</h3><p class="admin-settings-note">Yahan se jo badlenge, wahi customer page par dikhega. Baar-baar coding ki zarurat nahi.</p><div class="admin-settings-grid"><label>Bold offer / top banner<input id="setAnnouncement" value="'+(cfg.announcement||'🔥 DHAMAKA OFFER • ₹1,999+ SHOPPING = GIFT CHANCE')+'"></label><label>Offer end (date/time)<input id="setOfferEnd" type="datetime-local" value="'+toLocalDateTime(cfg.offerEnd||OFFER_END)+'"></label><label class="admin-settings-wide>Hero heading<input id="setHeroTitle" value="'+(cfg.heroTitle||'Style that feels like you.')+'"></label><label>Hero small line<input id="setHeroEyebrow" value="'+(cfg.heroEyebrow||'THE EVERYDAY EDIT · EST. IN Derni Bazar')+'"></label><label>Hero description<input id="setHeroText" value="'+(cfg.heroText||'Discover thoughtfully chosen festive and everyday fashion for every mood, moment and celebration.')+'"></label><label>Banner note title<input id="setHeroNoteTitle" value="'+(cfg.heroNoteTitle||'Maharani Saree Collection')+'"></label><label>Banner note text<input id="setHeroNoteText" value="'+(cfg.heroNoteText||'Derni Bazar • Saran')+'"></label><label>Offer heading<input id="setOfferTitle" value="'+(cfg.offerTitle||'Celebrate more, gift more.')+'"></label><label>Offer intro<input id="setOfferIntro" value="'+(cfg.offerIntro||'Make your shopping even more special with our in-store offers.')+'"></label><label>Dhamaka heading<input id="setDhamakaTitle" value="'+(cfg.dhamakaTitle||'🔥 DHAMAKA OFFER')+'"></label><label>Dhamaka text<input id="setDhamakaText" value="'+(cfg.dhamakaText||'आज का Dhamaka Offer देखें और समय खत्म होने से पहले shopping करें.')+'"></label></div></div><div class="admin-settings-card"><h3>🏪 Shop information</h3><div class="admin-settings-grid"><label>Phone / WhatsApp<input id="setPhone" value="'+(cfg.phone||'9097900814')+'"></label><label>Proprietor<input id="setProprietor" value="'+(cfg.proprietor||'Lakshman Bhagat')+'"></label><label class="admin-settings-wide>Address<input id="setAddress" value="'+(cfg.address||'Derni Bazar, Saran, Bihar — 841222')+'"></label><label>GST<input id="setGst" value="'+(cfg.gst||'10BZYPB5853J1Z3')+'"></label></div></div><div class="admin-settings-card"><h3>🖼️ Shop Banner / Owner Photo</h3><p class="admin-settings-note">Customer page ke right side ka current fashion photo hata kar yahan apna shop banner ya apna photo upload karein. Aap jab chahein replace kar sakte hain.</p><input id="setBannerFile" type="file" accept="image/*"><div id="settingsImagePreview" class="settings-image-preview">'+(siteSettings?.Image?'<img src="'+siteSettings.Image+'" alt="Current shop banner">':'')+'</div><div class="settings-actions"><button class="button button-dark" type="button" id="saveSiteSettingsBtn">Save ALL site settings</button><button class="button button-outline" type="button" id="refreshSiteSettingsBtn">Reload</button></div><p class="admin-msg" id="siteSettingsMsg"></p></div>';
+  $('setBannerFile').onchange=()=>{const f=$('setBannerFile').files[0];if(f){const u=URL.createObjectURL(f);$('settingsImagePreview').innerHTML='<img src="'+u+'" alt="New banner preview">';}};
+  $('saveSiteSettingsBtn').onclick=saveSiteSettings;$('refreshSiteSettingsBtn').onclick=()=>{injectSiteSettings();};
+}
+function toLocalDateTime(v){const d=new Date(v);if(Number.isNaN(d.getTime()))return '';const pad=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());}
+async function saveSiteSettings(){
+ const msg=$('siteSettingsMsg');msg.textContent='Saving ALL settings…';
+ try{const cfg={announcement:$('setAnnouncement').value.trim(),offerEnd:new Date($('setOfferEnd').value).toISOString(),heroTitle:$('setHeroTitle').value.trim(),heroEyebrow:$('setHeroEyebrow').value.trim(),heroText:$('setHeroText').value.trim(),heroNoteTitle:$('setHeroNoteTitle').value.trim(),heroNoteText:$('setHeroNoteText').value.trim(),offerTitle:$('setOfferTitle').value.trim(),offerIntro:$('setOfferIntro').value.trim(),dhamakaTitle:$('setDhamakaTitle').value.trim(),dhamakaText:$('setDhamakaText').value.trim(),phone:$('setPhone').value.trim(),proprietor:$('setProprietor').value.trim(),address:$('setAddress').value.trim(),gst:$('setGst').value.trim()};let image=siteSettings?.Image||'';const file=$('setBannerFile').files[0];if(file){const urls=await uploadAdminPhotos([file]);image=urls[0];}const payload={Name:'__SITE_SETTINGS__',Category:'__CONFIG__',Price:0,Mrp:0,Image:image,images:JSON.stringify(image?[image]:[]),Description:JSON.stringify(cfg)};const client=await getSupabaseClient();let result;if(siteSettingsId)result=await client.from('Products').update(payload).eq('id',siteSettingsId).select().single();else result=await client.from('Products').insert(payload).select().single();if(result.error)throw result.error;siteSettings=result.data;siteSettingsId=result.data.id;applySiteSettings();msg.textContent='ALL site settings saved ✓';toast('Website updated successfully');}catch(e){msg.textContent='Save failed: '+(e.message||e);}}
 function renderCategoryFilter() {
   const select=$('categoryFilter'), selected=select.value||'All';
   select.innerHTML='<option value="All">All categories</option>'+categories.map(c=>'<option value="'+c.name+'">'+c.label+'</option>').join('');
@@ -148,7 +176,7 @@ function injectAdmin(){
   const panel=document.createElement('section');panel.id='adminPanel';panel.className='admin-panel';panel.hidden=true;
   panel.innerHTML='<div class="admin-inner"><div class="admin-head"><div><p class="eyebrow">MAHARANI ADMIN</p><h2>Product Manager</h2><p class="admin-muted">Add, edit or delete products and upload multiple photos.</p></div><button class="admin-close" id="adminClose">×</button></div><div id="adminLogin"><div class="admin-box"><h3>Admin login</h3><label>Email<input id="adminEmail" type="email" autocomplete="username" placeholder="Admin email"></label><label>Password<input id="adminPassword" type="password" autocomplete="current-password" placeholder="Password"></label><button class="button button-dark" id="adminLoginBtn">Login</button><button class="button button-outline" type="button" id="adminForgotBtn">Forgot password?</button><p class="admin-msg" id="adminLoginMsg"></p></div></div><div id="adminApp" hidden><div class="admin-toolbar"><button class="button button-dark" id="newProductBtn">+ Add product</button><button class="button button-outline" id="adminLogoutBtn">Logout</button></div><form class="admin-box" id="productForm"><input type="hidden" id="adminId"><div class="admin-two"><label>Product name<input id="adminName" required placeholder="Saree"></label><label>Category<select id="adminCategory"><option>Saree</option><option>Lehnga</option><option>Suit</option><option>Kurti</option><option>Palazo</option><option>Leggings</option><option>Straight Pant</option><option>Kids</option><option>Jeans</option><option>Shorts</option><option>T-Shirt</option><option>Undergarments</option><option>Other</option><option value="__NEW_CATEGORY__">＋ New category...</option></select></label></div><div class="admin-two"><label>Selling price<input id="adminPrice" type="number" min="0" required placeholder="888"></label><label>MRP<input id="adminMrp" type="number" min="0" placeholder="1299"></label></div><label>Description<textarea id="adminDescription" rows="3" placeholder="Product details"></textarea><label>Photos <input id="adminPhotos" type="file" accept="image/*" multiple></label><p class="admin-help">You can select several photos for one product. The first photo becomes the main photo.</p><div id="adminPreview" class="admin-preview"></div><div class="admin-actions"><button class="button button-dark" type="submit" id="adminSaveBtn">Save product</button><button class="button button-outline" type="button" id="adminCancelBtn">Cancel</button></div><p class="admin-msg" id="adminFormMsg"></p></form><div class="admin-list" id="adminList"></div></div></div>';
   document.body.appendChild(panel);
-  setupAdminCategorySelect();$('adminClose').onclick=closeAdmin;$('adminForgotBtn').onclick=adminForgotPassword;$('newProductBtn').onclick=()=>resetAdminForm();$('adminCancelBtn').onclick=()=>resetAdminForm();$('adminLoginBtn').onclick=adminLogin;$('adminLogoutBtn').onclick=adminLogout;$('productForm').onsubmit=saveAdminProduct;$('adminPhotos').onchange=previewAdminPhotos;
+  setupAdminCategorySelect();injectSiteSettings();$('siteSettingsBtn').onclick=()=>{$('siteSettings').hidden=!$('siteSettings').hidden;if(!$('siteSettings').hidden)injectSiteSettings();};$('adminClose').onclick=closeAdmin;$('adminForgotBtn').onclick=adminForgotPassword;$('newProductBtn').onclick=()=>resetAdminForm();$('adminCancelBtn').onclick=()=>resetAdminForm();$('adminLoginBtn').onclick=adminLogin;$('adminLogoutBtn').onclick=adminLogout;$('productForm').onsubmit=saveAdminProduct;$('adminPhotos').onchange=previewAdminPhotos;
 }
 function openAdmin(){injectAdmin();$('adminPanel').hidden=false;document.body.classList.add('admin-open');loadSupabaseClient().then(refreshAdminSession).catch(e=>{$('adminLoginMsg').textContent='Could not load admin login: '+e.message;});}
 function closeAdmin(){if($('adminPanel'))$('adminPanel').hidden=true;document.body.classList.remove('admin-open');history.replaceState(null,'',SITE_URL);}
@@ -202,7 +230,7 @@ async function adminForgotPassword(){
   catch(error){msg.textContent='Reset failed: '+(error.message||error);}
 }
 async function adminLogout(){const client=await getSupabaseClient();await client.auth.signOut();$('adminLogin').hidden=false;$('adminApp').hidden=true;resetAdminForm();}
-function showAdminApp(){$('adminLogin').hidden=true;$('adminApp').hidden=false;resetAdminForm();refreshAdminList();}
+function showAdminApp(){$('adminLogin').hidden=true;$('adminApp').hidden=false;resetAdminForm();injectSiteSettings();refreshAdminList();}
 function setupAdminCategorySelect(){
   const select=$('adminCategory');
   if(!select)return;
