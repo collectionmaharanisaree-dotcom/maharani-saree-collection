@@ -113,8 +113,22 @@ function toast(message){$('toast').textContent=message;$('toast').classList.add(
 
 function loadSupabaseClient(){
   return new Promise((resolve,reject)=>{
-    if(window.supabase?.createClient){supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);return resolve();}
-    const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';s.onload=()=>{supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);resolve();};s.onerror=reject;document.head.appendChild(s);
+    if(supabase)return resolve(supabase);
+    const finish=()=>{
+      try{
+        const api=window.supabase;
+        if(!api?.createClient)throw new Error('Supabase library load नहीं हुई');
+        supabase=api.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+        resolve(supabase);
+      }catch(e){reject(e);}
+    };
+    if(window.supabase?.createClient){finish();return;}
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    s.async=true;
+    s.onload=finish;
+    s.onerror=()=>reject(new Error('Supabase library load नहीं हो सकी'));
+    document.head.appendChild(s);
   });
 }
 function injectAdmin(){
