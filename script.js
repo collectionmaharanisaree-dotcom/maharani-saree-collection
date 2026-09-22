@@ -259,14 +259,13 @@ async function refreshAdminList(){
   const {data,error}=await client.from('Products').select('*').order('id',{ascending:false});
   if(error){$('adminList').innerHTML='<div class="admin-box admin-error">'+error.message+'</div>';return;}
   adminProducts=data.map(normalizeProduct);
-  $('adminList').innerHTML=adminProducts.map(p=>'<div class="admin-row"><img src="'+p.image+'" alt=""><div><strong>'+p.name+'</strong><small>'+p.category+' · '+money(p.price)+'</small></div><div class="admin-row-actions"><button class="button button-outline" data-edit="'+p.id+'">Edit</button><button class="button button-danger" data-delete="'+p.id+'">Delete</button></div></div>').join('');
-  document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editAdminProduct(b.dataset.edit));
+  $('adminList').innerHTML=adminProducts.map(p=>'<div class="admin-row"><img src="'+p.image+'" alt=""><div><strong>'+p.name+'</strong><small>'+p.category+' · '+money(p.price)+'</small></div><div class="admin-row-actions"><button type="button" class="button button-outline" data-edit="'+p.id+'">Edit</button><button type="button" class="button button-danger" data-delete="'+p.id+'">Delete</button></div></div>').join('');
+  document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();editAdminProduct(b.dataset.edit);});
   document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteAdminProduct(b.dataset.delete));
 }
 function editAdminProduct(id){
   const p=adminProducts.find(x=>String(x.id)===String(id));
   if(!p)return;
-  setupAdminCategorySelect();
   const select=$('adminCategory');
   if(![...select.options].some(o=>o.value===p.category)){
     const opt=document.createElement('option');opt.value=p.category;opt.textContent=p.category;select.insertBefore(opt,select.lastElementChild);
