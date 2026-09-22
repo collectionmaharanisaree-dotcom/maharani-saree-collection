@@ -143,11 +143,16 @@ function injectPasswordReset(){
   };
 }
 async function maybePasswordRecovery(){
-  const recovery = /type=recovery/i.test(location.href);
+  const recovery = /type=recovery/i.test(location.href) || /access_token=/i.test(location.hash) || /code=/i.test(location.search);
   if(!recovery)return false;
   await loadSupabaseClient();
-  let session = null;
-  for(let i=0;i<10;i++){
+  if(new URLSearchParams(location.search).get('code')){
+    const code=new URLSearchParams(location.search).get('code');
+    const {error}=await supabase.auth.exchangeCodeForSession(code);
+    if(error)console.error('Recovery code exchange failed:',error);
+  }
+  let session=null;
+  for(let i=0;i<20;i++){
     const {data}=await supabase.auth.getSession();
     session=data?.session||null;
     if(session)break;
