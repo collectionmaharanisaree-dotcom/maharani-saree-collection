@@ -5,6 +5,12 @@ const WHATSAPP = '919097900814';
 const STORAGE_BUCKET = 'product images';
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=700&q=80';
 
+const OFFER_END = '2026-09-30T23:59:59+05:30';
+let offerTimer = null;
+function formatCountdown(ms){const total=Math.max(0,Math.floor(ms/1000));const d=Math.floor(total/86400),h=Math.floor((total%86400)/3600),m=Math.floor((total%3600)/60),s=total%60;const pad=n=>String(n).padStart(2,'0');return d>0?d+'d '+pad(h)+':'+pad(m)+':'+pad(s):pad(h)+':'+pad(m)+':'+pad(s);}
+function startOfferCountdown(){const tick=()=>{const left=new Date(OFFER_END).getTime()-Date.now(),text=left>0?formatCountdown(left):'Offer ended',a=$('offerCountdown'),b=$('offerCountdownLarge'),msg=$('offerMessage');if(a)a.textContent=text;if(b)b.textContent=text;if(msg)msg.textContent=left>0?'जल्दी करें — Dhamaka Offer अभी LIVE है':'आज का offer समाप्त हो गया है';if(left<=0&&offerTimer){clearInterval(offerTimer);offerTimer=null;}};tick();if(offerTimer)clearInterval(offerTimer);offerTimer=setInterval(tick,1000);}
+function initOfferNotification(){const bar=$('offerTicker'),close=$('offerNotifyClose');if(!bar)return;close.onclick=()=>{bar.classList.add('offer-hidden');setTimeout(()=>bar.remove(),250);};setTimeout(()=>{if(document.body.contains(bar))bar.classList.add('offer-pulse');},1200);startOfferCountdown();}
+
 const fallbackProducts = [
   {id:1,name:'Saree',category:'Saree',price:867,mrp:1299,image:FALLBACK_IMAGE,images:[FALLBACK_IMAGE],description:'Beautiful saree collection for festive and everyday occasions.'},
   {id:2,name:'Lehnga',category:'Lehnga',price:1499,mrp:1999,image:'https://images.unsplash.com/photo-1597983073493-88cd35cf93d0?auto=format&fit=crop&w=700&q=80',images:[],description:'Stylish lehnga collection for weddings and special occasions.'},
@@ -291,6 +297,7 @@ function maybeAdminHash(){if(location.hash.toLowerCase()==='#admin')openAdmin();
 async function init(){
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
+  initOfferNotification();
   await loadProducts();rebuildCategories();renderCategoryFilter();$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(SITE_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();
   $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const lines=cart.map(x=>{const p=findProduct(x.id);return p?'• '+p.name+' ('+p.category+') × '+toNumber(x.qty)+' = '+money(p.price*toNumber(x.qty)):''}).filter(Boolean).join('\\n');const message='Namaste Maharani Saree Collection!\\n\\nNew order request\\n\\nCustomer: '+data.get('name')+'\\nMobile: '+data.get('mobile')+'\\nAddress: '+data.get('address')+'\\nPIN code: '+data.get('pin')+'\\n\\nSelected products:\\n'+lines+'\\n\\nTotal amount: '+money(cartTotal())+'\\n\\nPlease confirm availability, final price and delivery details.';window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');};
