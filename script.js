@@ -323,7 +323,7 @@ async function deleteAdminProduct(id){
   const {error}=await client.from('Products').delete().eq('id',id);if(error){toast('Delete failed: '+error.message);return;}
   await refreshAdminList();await loadProducts();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();toast('Product deleted');
 }
-function maybeAdminHash(){if(location.hash.toLowerCase()==='#admin')openAdmin();}
+function maybeAdminHash(){if(location.hash.toLowerCase()==='#admin'){openAdmin();}}
 async function init(){
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
