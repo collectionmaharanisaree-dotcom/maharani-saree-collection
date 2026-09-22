@@ -126,6 +126,30 @@ function injectAdmin(){
 }
 function openAdmin(){injectAdmin();$('adminPanel').hidden=false;document.body.classList.add('admin-open');loadSupabaseClient().then(refreshAdminSession).catch(e=>{$('adminLoginMsg').textContent='Could not load admin login: '+e.message;});}
 function closeAdmin(){if($('adminPanel'))$('adminPanel').hidden=true;document.body.classList.remove('admin-open');history.replaceState(null,'',SITE_URL);}
+
+function injectPasswordReset(){
+  if($('passwordResetPanel'))return;
+  const panel=document.createElement('section');panel.id='passwordResetPanel';panel.className='admin-panel';panel.innerHTML='<div class="admin-inner"><div class="admin-head"><div><p class="eyebrow">MAHARANI ADMIN</p><h2>Set new password</h2><p class="admin-muted">Choose a new password for your Admin account.</p></div></div><div class="admin-box"><label>New password<input id="resetPassword" type="password" autocomplete="new-password" minlength="6" placeholder="New password"></label><label>Confirm password<input id="resetPassword2" type="password" autocomplete="new-password" minlength="6" placeholder="Confirm password"></label><button class="button button-dark" id="resetPasswordBtn">Update password</button><p class="admin-msg" id="resetPasswordMsg"></p></div></div>';
+  document.body.appendChild(panel);
+  $('resetPasswordBtn').onclick=async()=>{
+    const msg=$('resetPasswordMsg'),a=$('resetPassword').value,b=$('resetPassword2').value;
+    if(a.length<6){msg.textContent='Password must be at least 6 characters.';return;}
+    if(a!==b){msg.textContent='Passwords do not match.';return;}
+    msg.textContent='Updating password…';
+    const {error}=await supabase.auth.updateUser({password:a});
+    if(error){msg.textContent=error.message;return;}
+    msg.textContent='Password updated successfully ✓';
+    setTimeout(()=>{panel.remove();location.hash='admin';},900);
+  };
+}
+async function maybePasswordRecovery(){
+  const recovery = /(?:^|[&#?])type=recovery(?:&|$)/i.test(location.href);
+  if(!recovery)return false;
+  await loadSupabaseClient();
+  const {data}=await supabase.auth.getSession();
+  if(data.session){injectPasswordReset();$('passwordResetPanel').hidden=false;document.body.classList.add('admin-open');return true;}
+  return false;
+}
 async function refreshAdminSession(){
   const {data}=await supabase.auth.getSession();if(data.session)showAdminApp();else{$('adminLogin').hidden=false;$('adminApp').hidden=true;}
 }
@@ -192,6 +216,8 @@ async function deleteAdminProduct(id){
 }
 function maybeAdminHash(){if(location.hash.toLowerCase()==='#admin')openAdmin();}
 async function init(){
+  const isRecovery=await maybePasswordRecovery();
+  if(isRecovery)return;
   await loadProducts();rebuildCategories();renderCategoryFilter();$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(SITE_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();
   $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const lines=cart.map(x=>{const p=findProduct(x.id);return p?'• '+p.name+' ('+p.category+') × '+toNumber(x.qty)+' = '+money(p.price*toNumber(x.qty)):''}).filter(Boolean).join('\\n');const message='Namaste Maharani Saree Collection!\\n\\nNew order request\\n\\nCustomer: '+data.get('name')+'\\nMobile: '+data.get('mobile')+'\\nAddress: '+data.get('address')+'\\nPIN code: '+data.get('pin')+'\\n\\nSelected products:\\n'+lines+'\\n\\nTotal amount: '+money(cartTotal())+'\\n\\nPlease confirm availability, final price and delivery details.';window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');};
