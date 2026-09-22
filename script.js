@@ -13,7 +13,14 @@ const fallbackProducts = [
   {id:5,name:'Palazo',category:'Palazo',price:699,mrp:999,image:'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=700&q=80',images:[],description:'Comfortable and stylish palazo collection.'}
 ];
 
-let products = [...fallbackProducts], categories = [], supabase = null, adminProducts = [];
+let products = [], categories = [], supabaseClient = null, adminProducts = [];
+
+async function getSupabaseClient(){
+  if(supabaseClient) return supabaseClient;
+  await loadSupabaseClient();
+  if(!supabaseClient) throw new Error('Supabase connection load नहीं हुआ। Page refresh करके फिर कोशिश करें।');
+  return supabaseClient;
+}
 
 const money = n => '₹' + (Number(n)||0).toLocaleString('en-IN');
 const $ = id => document.getElementById(id);
@@ -113,25 +120,23 @@ function toast(message){$('toast').textContent=message;$('toast').classList.add(
 
 function loadSupabaseClient(){
   return new Promise((resolve,reject)=>{
-    if(supabase)return resolve(supabase);
+    if(supabaseClient)return resolve(supabaseClient);
     const finish=()=>{
       try{
         const api=window.supabase;
         if(!api?.createClient)throw new Error('Supabase library load नहीं हुई');
-        supabase=api.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-        resolve(supabase);
+        supabaseClient=api.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+        resolve(supabaseClient);
       }catch(e){reject(e);}
     };
     if(window.supabase?.createClient){finish();return;}
     const s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    s.async=true;
-    s.onload=finish;
-    s.onerror=()=>reject(new Error('Supabase library load नहीं हो सकी'));
+    s.src='https://unpkg.com/@supabase/supabase-js@2';
+    s.async=true;s.onload=finish;s.onerror=()=>reject(new Error('Supabase library load नहीं हो सकी'));
     document.head.appendChild(s);
   });
 }
-function injectAdmin(){
+function injectAdmin{
   if($('adminPanel'))return;
   const panel=document.createElement('section');panel.id='adminPanel';panel.className='admin-panel';panel.hidden=true;
   panel.innerHTML='<div class="admin-inner"><div class="admin-head"><div><p class="eyebrow">MAHARANI ADMIN</p><h2>Product Manager</h2><p class="admin-muted">Add, edit or delete products and upload multiple photos.</p></div><button class="admin-close" id="adminClose">×</button></div><div id="adminLogin"><div class="admin-box"><h3>Admin login</h3><label>Email<input id="adminEmail" type="email" autocomplete="username" placeholder="Admin email"></label><label>Password<input id="adminPassword" type="password" autocomplete="current-password" placeholder="Password"></label><button class="button button-dark" id="adminLoginBtn">Login</button><p class="admin-msg" id="adminLoginMsg"></p></div></div><div id="adminApp" hidden><div class="admin-toolbar"><button class="button button-dark" id="newProductBtn">+ Add product</button><button class="button button-outline" id="adminLogoutBtn">Logout</button></div><form class="admin-box" id="productForm"><input type="hidden" id="adminId"><div class="admin-two"><label>Product name<input id="adminName" required placeholder="Saree"></label><label>Category<select id="adminCategory"><option>Saree</option><option>Lehnga</option><option>Suit</option><option>Kurti</option><option>Palazo</option><option>Leggings</option><option>Straight Pant</option><option>Kids</option><option>Jeans</option><option>Shorts</option><option>T-Shirt</option><option>Undergarments</option><option>Other</option></select></label></div><div class="admin-two"><label>Selling price<input id="adminPrice" type="number" min="0" required placeholder="888"></label><label>MRP<input id="adminMrp" type="number" min="0" placeholder="1299"></label></div><label>Description<textarea id="adminDescription" rows="3" placeholder="Product details"></textarea><label>Photos <input id="adminPhotos" type="file" accept="image/*" multiple></label><p class="admin-help">You can select several photos for one product. The first photo becomes the main photo.</p><div id="adminPreview" class="admin-preview"></div><div class="admin-actions"><button class="button button-dark" type="submit" id="adminSaveBtn">Save product</button><button class="button button-outline" type="button" id="adminCancelBtn">Cancel</button></div><p class="admin-msg" id="adminFormMsg"></p></form><div class="admin-list" id="adminList"></div></div></div>';
@@ -157,50 +162,32 @@ function injectPasswordReset(){
   };
 }
 async function maybePasswordRecovery(){
-  const recovery = /type=recovery/i.test(location.href) || /access_token=/i.test(location.hash) || /code=/i.test(location.search);
+  const recovery=/type=recovery/i.test(location.href)||/access_token=/i.test(location.hash)||/code=/i.test(location.search);
   if(!recovery)return false;
-  await loadSupabaseClient();
+  const client=await getSupabaseClient();
   if(new URLSearchParams(location.search).get('code')){
-    const code=new URLSearchParams(location.search).get('code');
-    const {error}=await supabase.auth.exchangeCodeForSession(code);
-    if(error)console.error('Recovery code exchange failed:',error);
+    const {error}=await client.auth.exchangeCodeForSession(new URLSearchParams(location.search).get('code'));
+    if(error)console.error(error);
   }
   let session=null;
-  for(let i=0;i<20;i++){
-    const {data}=await supabase.auth.getSession();
-    session=data?.session||null;
-    if(session)break;
-    await new Promise(resolve=>setTimeout(resolve,300));
-  }
-  if(session){
-    injectPasswordReset();
-    $('passwordResetPanel').hidden=false;
-    document.body.classList.add('admin-open');
-    return true;
-  }
+  for(let i=0;i<20;i++){const {data}=await client.auth.getSession();session=data?.session||null;if(session)break;await new Promise(r=>setTimeout(r,300));}
+  if(session){injectPasswordReset();$('passwordResetPanel').hidden=false;document.body.classList.add('admin-open');return true;}
   return false;
 }
 async function refreshAdminSession(){
-  const {data}=await supabase.auth.getSession();if(data.session)showAdminApp();else{$('adminLogin').hidden=false;$('adminApp').hidden=true;}
+  const client=await getSupabaseClient();
+  const {data}=await client.auth.getSession();if(data.session)showAdminApp();else{$('adminLogin').hidden=false;$('adminApp').hidden=true;}
 }
 async function adminLogin(){
-  const msg=$('adminLoginMsg');
-  const email=$('adminEmail').value.trim(),password=$('adminPassword').value;
+  const msg=$('adminLoginMsg'),email=$('adminEmail').value.trim(),password=$('adminPassword').value;
   if(!email||!password){msg.textContent='Email और password भरिए।';return;}
   msg.textContent='Connecting…';
-  try{
-    if(!supabase) await loadSupabaseClient();
-    if(!supabase) throw new Error('Supabase connection load नहीं हुआ। Page refresh करके फिर कोशिश करें।');
-    msg.textContent='Logging in…';
-    const result=await Promise.race([
-      supabase.auth.signInWithPassword({email,password}),
-      new Promise((_,reject)=>setTimeout(()=>reject(new Error('Login request timed out. Internet connection या Supabase Auth setting check करें.')),15000))
-    ]);
-    if(result.error){msg.textContent='Login failed: '+result.error.message;return;}
-    msg.textContent='Login successful ✓';showAdminApp();
+  try{const client=await getSupabaseClient();msg.textContent='Logging in…';
+    const result=await Promise.race([client.auth.signInWithPassword({email,password}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Login request timed out.')),15000))]);
+    if(result.error){msg.textContent='Login failed: '+result.error.message;return;} msg.textContent='Login successful ✓';showAdminApp();
   }catch(error){msg.textContent='Login failed: '+(error.message||error);}
 }
-async function adminLogout(){await supabase.auth.signOut();$('adminLogin').hidden=false;$('adminApp').hidden=true;resetAdminForm();}
+async function adminLogout(){const client=await getSupabaseClient();await client.auth.signOut();$('adminLogin').hidden=false;$('adminApp').hidden=true;resetAdminForm();}
 function showAdminApp(){$('adminLogin').hidden=true;$('adminApp').hidden=false;resetAdminForm();refreshAdminList();}
 function resetAdminForm(){
   $('productForm').reset();$('adminId').value='';$('adminPreview').innerHTML='';$('adminFormMsg').textContent='';$('adminSaveBtn').textContent='Save product';
@@ -232,15 +219,16 @@ async function saveAdminProduct(e){
     if(!image)image=FALLBACK_IMAGE;
     const payload={Name:name,Category:category,Price:price,Mrp:mrp,Image:image,images:JSON.stringify(images),Description:description};
     let result;
-    if(id) result=await supabase.from('Products').update(payload).eq('id',id).select().single();
-    else result=await supabase.from('Products').insert(payload).select().single();
+    if(id) result=await getSupabaseClient().then(client=>client.from('Products')).update(payload).eq('id',id).select().single();
+    else result=await getSupabaseClient().then(client=>client.from('Products')).insert(payload).select().single();
     if(result.error)throw result.error;
     msg.textContent='Product saved successfully ✓';await refreshAdminList();await loadProducts();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();setTimeout(resetAdminForm,600);
   }catch(error){console.error(error);msg.textContent='Save failed: '+(error.message||error);}
   finally{save.disabled=false;}
 }
 async function refreshAdminList(){
-  const {data,error}=await supabase.from('Products').select('*').order('id',{ascending:false});
+  const client=await getSupabaseClient();
+  const {data,error}=await client.from('Products').select('*').order('id',{ascending:false});
   if(error){$('adminList').innerHTML='<div class="admin-box admin-error">'+error.message+'</div>';return;}
   adminProducts=data.map(normalizeProduct);
   $('adminList').innerHTML=adminProducts.map(p=>'<div class="admin-row"><img src="'+p.image+'" alt=""><div><strong>'+p.name+'</strong><small>'+p.category+' · '+money(p.price)+'</small></div><div class="admin-row-actions"><button class="button button-outline" data-edit="'+p.id+'">Edit</button><button class="button button-danger" data-delete="'+p.id+'">Delete</button></div></div>').join('');
@@ -253,7 +241,8 @@ function editAdminProduct(id){
 }
 async function deleteAdminProduct(id){
   if(!confirm('Delete this product?'))return;
-  const {error}=await supabase.from('Products').delete().eq('id',id);if(error){toast('Delete failed: '+error.message);return;}
+  const client=await getSupabaseClient();
+  const {error}=await client.from('Products').delete().eq('id',id);if(error){toast('Delete failed: '+error.message);return;}
   await refreshAdminList();await loadProducts();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();toast('Product deleted');
 }
 function maybeAdminHash(){if(location.hash.toLowerCase()==='#admin')openAdmin();}
