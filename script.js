@@ -329,6 +329,9 @@ async function deleteAdminProduct(id){
   await refreshAdminList();await loadProducts();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();toast('Product deleted');
 }
 function maybeAdminHash(){if(location.hash.toLowerCase()==='#admin'){openAdmin();}}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('a[href="#admin"]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();openAdmin();}));
+});
 async function init(){
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
