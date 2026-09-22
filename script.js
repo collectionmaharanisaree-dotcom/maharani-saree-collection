@@ -14,6 +14,7 @@ const fallbackProducts = [
 ];
 
 let products = [], categories = [], supabaseClient = null, adminProducts = [];
+let customAdminCategories = JSON.parse(localStorage.getItem('maharani-custom-categories') || '[]');
 
 async function getSupabaseClient(){
   if(supabaseClient) return supabaseClient;
@@ -139,9 +140,9 @@ function loadSupabaseClient(){
 function injectAdmin(){
   if($('adminPanel'))return;
   const panel=document.createElement('section');panel.id='adminPanel';panel.className='admin-panel';panel.hidden=true;
-  panel.innerHTML='<div class="admin-inner"><div class="admin-head"><div><p class="eyebrow">MAHARANI ADMIN</p><h2>Product Manager</h2><p class="admin-muted">Add, edit or delete products and upload multiple photos.</p></div><button class="admin-close" id="adminClose">×</button></div><div id="adminLogin"><div class="admin-box"><h3>Admin login</h3><label>Email<input id="adminEmail" type="email" autocomplete="username" placeholder="Admin email"></label><label>Password<input id="adminPassword" type="password" autocomplete="current-password" placeholder="Password"></label><button class="button button-dark" id="adminLoginBtn">Login</button><button class="button button-outline" type="button" id="adminForgotBtn">Forgot password?</button><p class="admin-msg" id="adminLoginMsg"></p></div></div><div id="adminApp" hidden><div class="admin-toolbar"><button class="button button-dark" id="newProductBtn">+ Add product</button><button class="button button-outline" id="adminLogoutBtn">Logout</button></div><form class="admin-box" id="productForm"><input type="hidden" id="adminId"><div class="admin-two"><label>Product name<input id="adminName" required placeholder="Saree"></label><label>Category<select id="adminCategory"><option>Saree</option><option>Lehnga</option><option>Suit</option><option>Kurti</option><option>Palazo</option><option>Leggings</option><option>Straight Pant</option><option>Kids</option><option>Jeans</option><option>Shorts</option><option>T-Shirt</option><option>Undergarments</option><option>Other</option></select></label></div><div class="admin-two"><label>Selling price<input id="adminPrice" type="number" min="0" required placeholder="888"></label><label>MRP<input id="adminMrp" type="number" min="0" placeholder="1299"></label></div><label>Description<textarea id="adminDescription" rows="3" placeholder="Product details"></textarea><label>Photos <input id="adminPhotos" type="file" accept="image/*" multiple></label><p class="admin-help">You can select several photos for one product. The first photo becomes the main photo.</p><div id="adminPreview" class="admin-preview"></div><div class="admin-actions"><button class="button button-dark" type="submit" id="adminSaveBtn">Save product</button><button class="button button-outline" type="button" id="adminCancelBtn">Cancel</button></div><p class="admin-msg" id="adminFormMsg"></p></form><div class="admin-list" id="adminList"></div></div></div>';
+  panel.innerHTML='<div class="admin-inner"><div class="admin-head"><div><p class="eyebrow">MAHARANI ADMIN</p><h2>Product Manager</h2><p class="admin-muted">Add, edit or delete products and upload multiple photos.</p></div><button class="admin-close" id="adminClose">×</button></div><div id="adminLogin"><div class="admin-box"><h3>Admin login</h3><label>Email<input id="adminEmail" type="email" autocomplete="username" placeholder="Admin email"></label><label>Password<input id="adminPassword" type="password" autocomplete="current-password" placeholder="Password"></label><button class="button button-dark" id="adminLoginBtn">Login</button><button class="button button-outline" type="button" id="adminForgotBtn">Forgot password?</button><p class="admin-msg" id="adminLoginMsg"></p></div></div><div id="adminApp" hidden><div class="admin-toolbar"><button class="button button-dark" id="newProductBtn">+ Add product</button><button class="button button-outline" id="adminLogoutBtn">Logout</button></div><form class="admin-box" id="productForm"><input type="hidden" id="adminId"><div class="admin-two"><label>Product name<input id="adminName" required placeholder="Saree"></label><label>Category<select id="adminCategory"><option>Saree</option><option>Lehnga</option><option>Suit</option><option>Kurti</option><option>Palazo</option><option>Leggings</option><option>Straight Pant</option><option>Kids</option><option>Jeans</option><option>Shorts</option><option>T-Shirt</option><option>Undergarments</option><option>Other</option><option value="__NEW_CATEGORY__">＋ New category...</option></select></label></div><div class="admin-two"><label>Selling price<input id="adminPrice" type="number" min="0" required placeholder="888"></label><label>MRP<input id="adminMrp" type="number" min="0" placeholder="1299"></label></div><label>Description<textarea id="adminDescription" rows="3" placeholder="Product details"></textarea><label>Photos <input id="adminPhotos" type="file" accept="image/*" multiple></label><p class="admin-help">You can select several photos for one product. The first photo becomes the main photo.</p><div id="adminPreview" class="admin-preview"></div><div class="admin-actions"><button class="button button-dark" type="submit" id="adminSaveBtn">Save product</button><button class="button button-outline" type="button" id="adminCancelBtn">Cancel</button></div><p class="admin-msg" id="adminFormMsg"></p></form><div class="admin-list" id="adminList"></div></div></div>';
   document.body.appendChild(panel);
-  $('adminClose').onclick=closeAdmin;$('adminForgotBtn').onclick=adminForgotPassword;$('newProductBtn').onclick=()=>resetAdminForm();$('adminCancelBtn').onclick=()=>resetAdminForm();$('adminLoginBtn').onclick=adminLogin;$('adminLogoutBtn').onclick=adminLogout;$('productForm').onsubmit=saveAdminProduct;$('adminPhotos').onchange=previewAdminPhotos;
+  setupAdminCategorySelect();$('adminClose').onclick=closeAdmin;$('adminForgotBtn').onclick=adminForgotPassword;$('newProductBtn').onclick=()=>resetAdminForm();$('adminCancelBtn').onclick=()=>resetAdminForm();$('adminLoginBtn').onclick=adminLogin;$('adminLogoutBtn').onclick=adminLogout;$('productForm').onsubmit=saveAdminProduct;$('adminPhotos').onchange=previewAdminPhotos;
 }
 function openAdmin(){injectAdmin();$('adminPanel').hidden=false;document.body.classList.add('admin-open');loadSupabaseClient().then(refreshAdminSession).catch(e=>{$('adminLoginMsg').textContent='Could not load admin login: '+e.message;});}
 function closeAdmin(){if($('adminPanel'))$('adminPanel').hidden=true;document.body.classList.remove('admin-open');history.replaceState(null,'',SITE_URL);}
@@ -196,8 +197,27 @@ async function adminForgotPassword(){
 }
 async function adminLogout(){const client=await getSupabaseClient();await client.auth.signOut();$('adminLogin').hidden=false;$('adminApp').hidden=true;resetAdminForm();}
 function showAdminApp(){$('adminLogin').hidden=true;$('adminApp').hidden=false;resetAdminForm();refreshAdminList();}
+function setupAdminCategorySelect(){
+  const select=$('adminCategory');
+  if(!select)return;
+  const base=['Saree','Lehnga','Suit','Kurti','Palazo','Leggings','Straight Pant','Kids','Jeans','Shorts','T-Shirt','Undergarments','Other'];
+  const saved=[...new Set(customAdminCategories.filter(Boolean))];
+  select.innerHTML=base.concat(saved.filter(x=>!base.includes(x))).map(x=>'<option value="'+x+'">'+x+'</option>').join('')+'<option value="__NEW_CATEGORY__">＋ New category...</option>';
+  select.onchange=()=>{
+    if(select.value!=='__NEW_CATEGORY__')return;
+    const name=prompt('New category ka naam likhiye:');
+    const clean=(name||'').trim();
+    if(!clean){select.value=base[0];return;}
+    if(!customAdminCategories.includes(clean)){
+      customAdminCategories.push(clean);
+      localStorage.setItem('maharani-custom-categories',JSON.stringify(customAdminCategories));
+    }
+    setupAdminCategorySelect();
+    select.value=clean;
+  };
+}
 function resetAdminForm(){
-  $('productForm').reset();$('adminId').value='';$('adminPreview').innerHTML='';$('adminFormMsg').textContent='';$('adminSaveBtn').textContent='Save product';
+  $('productForm').reset();setupAdminCategorySelect();$('adminId').value='';$('adminPreview').innerHTML='';$('adminFormMsg').textContent='';$('adminSaveBtn').textContent='Save product';
 }
 function previewAdminPhotos(){
   const box=$('adminPreview');box.innerHTML='';
