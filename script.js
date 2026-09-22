@@ -170,9 +170,18 @@ async function refreshAdminSession(){
   const {data}=await supabase.auth.getSession();if(data.session)showAdminApp();else{$('adminLogin').hidden=false;$('adminApp').hidden=true;}
 }
 async function adminLogin(){
-  const msg=$('adminLoginMsg');msg.textContent='Logging in…';
-  const {error}=await supabase.auth.signInWithPassword({email:$('adminEmail').value.trim(),password:$('adminPassword').value});
-  if(error){msg.textContent=error.message;return;}msg.textContent='';showAdminApp();
+  const msg=$('adminLoginMsg');
+  const email=$('adminEmail').value.trim(),password=$('adminPassword').value;
+  if(!email||!password){msg.textContent='Email और password भरिए।';return;}
+  msg.textContent='Logging in…';
+  try{
+    const result=await Promise.race([
+      supabase.auth.signInWithPassword({email,password}),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('Login request timed out. Internet connection या Supabase Auth setting check करें.')),15000))
+    ]);
+    if(result.error){msg.textContent='Login failed: '+result.error.message;return;}
+    msg.textContent='Login successful ✓';showAdminApp();
+  }catch(error){msg.textContent='Login failed: '+(error.message||error);}
 }
 async function adminLogout(){await supabase.auth.signOut();$('adminLogin').hidden=false;$('adminApp').hidden=true;resetAdminForm();}
 function showAdminApp(){$('adminLogin').hidden=true;$('adminApp').hidden=false;resetAdminForm();refreshAdminList();}
