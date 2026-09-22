@@ -264,8 +264,23 @@ async function refreshAdminList(){
   document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteAdminProduct(b.dataset.delete));
 }
 function editAdminProduct(id){
-  const p=adminProducts.find(x=>String(x.id)===String(id));if(!p)return;
-  $('adminId').value=p.id;$('adminName').value=p.name;$('adminCategory').value=p.category;$('adminPrice').value=p.price;$('adminMrp').value=p.mrp;$('adminDescription').value=p.description||'';$('adminPreview').innerHTML=p.images.map(src=>'<img src="'+src+'" alt="">').join('');$('adminFormMsg').textContent='Existing photos kept. Select new photos to add more.';$('adminSaveBtn').textContent='Update product';window.scrollTo({top:$('adminPanel').offsetTop,behavior:'smooth'});
+  const p=adminProducts.find(x=>String(x.id)===String(id));
+  if(!p)return;
+  setupAdminCategorySelect();
+  const select=$('adminCategory');
+  if(![...select.options].some(o=>o.value===p.category)){
+    const opt=document.createElement('option');opt.value=p.category;opt.textContent=p.category;select.insertBefore(opt,select.lastElementChild);
+  }
+  $('adminId').value=p.id;
+  $('adminName').value=p.name;
+  select.value=p.category;
+  $('adminPrice').value=p.price;
+  $('adminMrp').value=p.mrp;
+  $('adminDescription').value=p.description||'';
+  $('adminPreview').innerHTML=(p.images||[]).map(src=>'<img src="'+src+'" alt="">').join('');
+  $('adminFormMsg').textContent='Existing photos kept. Select new photos to add more.';
+  $('adminSaveBtn').textContent='Update product';
+  $('productForm').scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function deleteAdminProduct(id){
   if(!confirm('Delete this product?'))return;
