@@ -173,8 +173,11 @@ async function adminLogin(){
   const msg=$('adminLoginMsg');
   const email=$('adminEmail').value.trim(),password=$('adminPassword').value;
   if(!email||!password){msg.textContent='Email और password भरिए।';return;}
-  msg.textContent='Logging in…';
+  msg.textContent='Connecting…';
   try{
+    if(!supabase) await loadSupabaseClient();
+    if(!supabase) throw new Error('Supabase connection load नहीं हुआ। Page refresh करके फिर कोशिश करें।');
+    msg.textContent='Logging in…';
     const result=await Promise.race([
       supabase.auth.signInWithPassword({email,password}),
       new Promise((_,reject)=>setTimeout(()=>reject(new Error('Login request timed out. Internet connection या Supabase Auth setting check करें.')),15000))
