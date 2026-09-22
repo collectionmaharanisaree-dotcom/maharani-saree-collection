@@ -143,11 +143,22 @@ function injectPasswordReset(){
   };
 }
 async function maybePasswordRecovery(){
-  const recovery = /(?:^|[&#?])type=recovery(?:&|$)/i.test(location.href);
+  const recovery = /type=recovery/i.test(location.href);
   if(!recovery)return false;
   await loadSupabaseClient();
-  const {data}=await supabase.auth.getSession();
-  if(data.session){injectPasswordReset();$('passwordResetPanel').hidden=false;document.body.classList.add('admin-open');return true;}
+  let session = null;
+  for(let i=0;i<10;i++){
+    const {data}=await supabase.auth.getSession();
+    session=data?.session||null;
+    if(session)break;
+    await new Promise(resolve=>setTimeout(resolve,300));
+  }
+  if(session){
+    injectPasswordReset();
+    $('passwordResetPanel').hidden=false;
+    document.body.classList.add('admin-open');
+    return true;
+  }
   return false;
 }
 async function refreshAdminSession(){
