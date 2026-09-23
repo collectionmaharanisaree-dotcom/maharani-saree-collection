@@ -1,6 +1,3 @@
-window.addEventListener('error',e=>{const msg=e?.error?.stack||e?.message||'Unknown JavaScript error';const show=()=>{let box=document.getElementById('supabase-diagnostic-error');if(!box){box=document.createElement('pre');box.id='supabase-diagnostic-error';box.style.cssText='position:fixed;z-index:2147483647;top:0;left:0;right:0;margin:0;padding:16px;background:#8b0000;color:#fff;font:14px/1.45 monospace;white-space:pre-wrap;overflow:auto;max-height:50vh;box-sizing:border-box';document.body.prepend(box);}box.textContent='Website JavaScript error:\n\n'+msg;};if(document.body)show();else window.addEventListener('DOMContentLoaded',show,{once:true});});
-window.addEventListener('unhandledrejection',e=>{const msg=e?.reason?.stack||e?.reason?.message||String(e?.reason||'Unknown promise error');const show=()=>{let box=document.getElementById('supabase-diagnostic-error');if(!box){box=document.createElement('pre');box.id='supabase-diagnostic-error';box.style.cssText='position:fixed;z-index:2147483647;top:0;left:0;right:0;margin:0;padding:16px;background:#8b0000;color:#fff;font:14px/1.45 monospace;white-space:pre-wrap;overflow:auto;max-height:50vh;box-sizing:border-box';document.body.prepend(box);}box.textContent='Website promise error:\n\n'+msg;};if(document.body)show();else window.addEventListener('DOMContentLoaded',show,{once:true});});
-
 const SITE_URL = 'https://collectionmaharanisaree-dotcom.github.io/maharani-saree-collection/';
 const SUPABASE_URL = 'https://rqzaibfdwczpqfrswcvg.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_oPs57ONamrOxneH9jsxbvw__PzUetUG';
@@ -70,61 +67,20 @@ function showSupabaseError(message) {
   document.body.prepend(box);
 }
 async function loadProducts() {
-  const readRows = async (url, headers={}) => {
-    const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(), 12000);
-    try {
-      const response = await fetch(url,{method:'GET',cache:'no-store',signal:controller.signal,headers});
-      const body = await response.text();
-      if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
-      const data = JSON.parse(body);
-      if(!Array.isArray(data)) throw new Error('Invalid products response');
-      return data;
-    } finally {
-      clearTimeout(timeout);
-    }
-  };
+  const requestUrl = SUPABASE_URL + '/functions/v1/bright-task';
   try {
-    let data = [];
-    let lastError = null;
-
-    // Read the public Products table first. This is the most direct and reliable
-    // customer-page path and does not depend on the Edge Function.
-    try {
-      data = await readRows(
-        SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc',
-        {apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY}
-      );
-    } catch(e) {
-      lastError = e;
-    }
-
-    // Keep the existing Edge Function as a secondary compatibility path.
-    const realProducts = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__');
-    if(!realProducts.length) {
-      try {
-        data = await readRows(SUPABASE_URL + '/functions/v1/bright-task');
-      } catch(e) {
-        if(lastError) throw new Error('Product service failed.\\n\\nREST: '+lastError.message+'\\n\\nBright task: '+e.message);
-        throw e;
-      }
-    }
-
+    const response = await fetch(requestUrl,{method:'GET',cache:'no-store'});
+    const body = await response.text();
+    if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
+    const data = JSON.parse(body);
+    if(!Array.isArray(data)) throw new Error('Invalid products response');
     siteSettings = data.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
     siteSettingsId = siteSettings?.id || null;
-    products = data
-      .filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__')
-      .map(normalizeProduct);
-
-    rebuildCategories();
+    products = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
     applySiteSettings();
-    renderCategoryFilter();
-    renderCategories();
-    renderProducts();
   } catch(error) {
-    console.error('Customer product loading failed:',error);
+    console.error(error);
     products = [];
-    categories = [];
     showSupabaseError(String(error?.message || error));
   }
 }
@@ -201,42 +157,27 @@ function openCheckout(){if(!cart.length)return toast('Add a product before check
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2400);}
 let lastInvoice=null;
 function makeInvoiceNumber(){const d=new Date(),date=d.getFullYear().toString().slice(-2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');return 'MSC-'+date+'-'+String(Date.now()).slice(-5);}
-function getInvoiceItemMrp(i){
-  const stored=toNumber(i.mrp);
-  if(stored>0)return stored;
-  const p=products.find(x=>String(x.name).toLowerCase()===String(i.name||'').toLowerCase()&&(!i.category||x.category===i.category));
-  return toNumber(p?.mrp)||toNumber(i.price);
-}
-function invoiceMrpTotal(x){
-  return x.items.reduce((sum,i)=>sum+getInvoiceItemMrp(i)*toNumber(i.qty),0);
-}
-function invoiceDiscount(x){
-  return Math.max(0,invoiceMrpTotal(x)-toNumber(x.total));
-}
 function createInvoice(data){
-  const items=cart.map(x=>{const p=findProduct(x.id);return p?{name:p.name,category:p.category,qty:toNumber(x.qty),price:p.price,mrp:p.mrp,total:p.price*toNumber(x.qty),image:p.image}:null;}).filter(Boolean);
-  const total=cartTotal();
-  const mrpTotal=items.reduce((sum,i)=>sum+toNumber(i.mrp)*toNumber(i.qty),0);
-  lastInvoice={number:makeInvoiceNumber(),date:new Date(),name:String(data.get('name')||''),mobile:String(data.get('mobile')||''),address:String(data.get('address')||''),pin:String(data.get('pin')||''),items,total,subtotal:mrpTotal,discount:Math.max(0,mrpTotal-total),gst:getSettingsConfig().gst||'10BZYPB5853J1Z3'};
+  const items=cart.map(x=>{const p=findProduct(x.id);return p?{name:p.name,category:p.category,qty:toNumber(x.qty),price:p.price,total:p.price*toNumber(x.qty),image:p.image}:null;}).filter(Boolean);
+  lastInvoice={number:makeInvoiceNumber(),date:new Date(),name:String(data.get('name')||''),mobile:String(data.get('mobile')||''),address:String(data.get('address')||''),pin:String(data.get('pin')||''),items,total:cartTotal(),subtotal:cartTotal(),discount:0,gst:getSettingsConfig().gst||'10BZYPB5853J1Z3'};
   renderInvoice();saveInvoiceDraft();saveOrderToHistory(lastInvoice); return lastInvoice;
 }
 function renderInvoice(){
   if(!lastInvoice)return;
   const x=lastInvoice;
-  const mrpTotal=invoiceMrpTotal(x), discount=invoiceDiscount(x);
-  $('invoicePreview').innerHTML='<div class="invoice-paper" id="invoicePaper"><div class="invoice-head"><div><div class="invoice-brand">👑 Maharani Saree Collection</div><div class="invoice-sub">Derni Bazar, Saran, Bihar — 841222</div></div><div class="invoice-meta"><strong>RETAIL BILL</strong><span>Bill No. '+x.number+'</span><span>'+x.date.toLocaleString('en-IN')+'</span></div></div><div class="invoice-shop"><span>GST: '+x.gst+'</span><span>Mob: 9097900814</span></div><div class="invoice-customer"><strong>Customer Details</strong><div><span>Name: '+x.name+'</span><span>Mobile: '+x.mobile+'</span><span>PIN: '+x.pin+'</span></div><p>Address: '+x.address+'</p></div><table class="invoice-table"><thead><tr><th>Product</th><th>Qty</th><th>MRP</th><th>Price</th><th>Amount</th></tr></thead><tbody>'+x.items.map(i=>'<tr><td>'+i.name+'<small>'+i.category+'</small></td><td>'+i.qty+'</td><td>'+money(getInvoiceItemMrp(i))+'</td><td>'+money(i.price)+'</td><td>'+money(i.total)+'</td></tr>').join('')+'</tbody><tfoot><tr><th colspan="4">MRP Total</th><th>'+money(mrpTotal)+'</th></tr><tr><th colspan="4">Discount / Saving</th><th>- '+money(discount)+'</th></tr><tr><th colspan="4">Total Payment</th><th>'+money(x.total)+'</th></tr></tfoot></table><div class="invoice-note">MRP और selling price अलग-अलग दिखाए गए हैं। Total Payment में केवल selling price है।</div><div class="invoice-footer">Maharani Saree Collection · आपकी पसंद, हमारी जिम्मेदारी!</div></div>';
+  $('invoicePreview').innerHTML='<div class="invoice-paper" id="invoicePaper"><div class="invoice-head"><div><div class="invoice-brand">👑 Maharani Saree Collection</div><div class="invoice-sub">Derni Bazar, Saran, Bihar — 841222</div></div><div class="invoice-meta"><strong>RETAIL BILL</strong><span>Bill No. '+x.number+'</span><span>'+x.date.toLocaleString('en-IN')+'</span></div></div><div class="invoice-shop"><span>GST: '+x.gst+'</span><span>Mob: 9097900814</span></div><div class="invoice-customer"><strong>Customer Details</strong><div><span>Name: '+x.name+'</span><span>Mobile: '+x.mobile+'</span><span>PIN: '+x.pin+'</span></div><p>Address: '+x.address+'</p></div><table class="invoice-table"><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+x.items.map(i=>'<tr><td>'+i.name+'<small>'+i.category+'</small></td><td>'+i.qty+'</td><td>'+money(i.price)+'</td><td>'+money(i.total)+'</td></tr>').join('')+'</tbody><tfoot><tr><th colspan="3">Subtotal</th><th>'+money(x.subtotal||x.total)+'</th></tr><tr><th colspan="3">Discount</th><th>- '+money(x.discount||0)+'</th></tr><tr><th colspan="3">Grand Total</th><th>'+money(x.total)+'</th></tr></tfoot></table><div class="invoice-note">धन्यवाद! कृपया सामान/उपलब्धता और अंतिम कीमत दुकान/WhatsApp पर कन्फर्म करें।</div><div class="invoice-footer">Maharani Saree Collection · आपकी पसंद, हमारी जिम्मेदारी!</div></div>';
 }
 function invoiceText(){
   if(!lastInvoice)return '';
-  const x=lastInvoice, mrpTotal=invoiceMrpTotal(x), discount=invoiceDiscount(x);
-  return '👑 Maharani Saree Collection\\n\\n🧾 BILL / ORDER\\nOrder No: '+x.number+'\\nCustomer: '+x.name+'\\nMobile: '+x.mobile+'\\nAddress: '+x.address+'\\nPIN: '+x.pin+'\\n\\nItems:\\n'+x.items.map(i=>'• '+i.name+' × '+i.qty+' | MRP '+money(getInvoiceItemMrp(i))+' | Price '+money(i.price)+' | Amount '+money(i.total)).join('\\n')+'\\n\\nMRP Total: '+money(mrpTotal)+'\\nDiscount / Saving: '+money(discount)+'\\n💰 TOTAL PAYMENT: '+money(x.total)+'\\n\\nGST: '+x.gst+'\\nThank you for shopping with Maharani Saree Collection!';
+  const x=lastInvoice;
+  return '👑 Maharani Saree Collection\\n\\n🧾 Bill No: '+x.number+'\\nCustomer: '+x.name+'\\nMobile: '+x.mobile+'\\nAddress: '+x.address+'\\nPIN: '+x.pin+'\\n\\nItems:\\n'+x.items.map(i=>'• '+i.name+' × '+i.qty+' = '+money(i.total)).join('\\n')+'\\n\\n💰 Grand Total: '+money(x.total)+'\\n\\nGST: '+x.gst+'\\nThank you for shopping with Maharani Saree Collection!';
 }
 function printInvoice(){
   if(!lastInvoice)return;
   const paper=$('invoicePaper')?.outerHTML||'';
   const w=window.open('','_blank','width=800,height=900');
   if(!w){toast('Popup allow karke Print Bill dobara dabaiye');return;}
-  w.document.write('<!doctype html><html><head><title>Maharani Bill '+lastInvoice.number+'</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;background:#eee;margin:0;padding:20px}.invoice-paper{max-width:760px;margin:auto;background:#fff;padding:28px;color:#211923}.invoice-head{display:flex;justify-content:space-between;border-bottom:2px solid #5d1738;padding-bottom:14px}.invoice-brand{font-size:24px;font-weight:800;color:#5d1738}.invoice-sub,.invoice-meta span,.invoice-customer,.invoice-note,.invoice-footer{font-size:12px;color:#555}.invoice-meta{text-align:right;display:grid;gap:4px}.invoice-meta strong{color:#5d1738}.invoice-shop{display:flex;justify-content:space-between;padding:10px 0;font-size:11px}.invoice-customer{border:1px solid #ddd;padding:12px;margin:10px 0}.invoice-customer div{display:flex;gap:25px;margin-top:8px}.invoice-customer p{margin:8px 0 0}.invoice-table{width:100%;border-collapse:collapse;font-size:12px}.invoice-table th,.invoice-table td{border-bottom:1px solid #ddd;padding:10px;text-align:left}.invoice-table th:nth-child(n+2),.invoice-table td:nth-child(n+2){text-align:right}.invoice-table small{display:block;color:#777}.invoice-note{margin-top:18px}.invoice-footer{text-align:center;margin-top:28px;border-top:1px solid #ddd;padding-top:12px}@media print{body{background:#fff;padding:0}.invoice-paper{max-width:none}}</style></head><body>'+paper+'<script>window.onload=()=>{setTimeout(()=>window.print(),100)}</script></body></html>');
+  w.document.write('<!doctype html><html><head><title>Maharani Bill '+lastInvoice.number+'</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;background:#eee;margin:0;padding:20px}.invoice-paper{max-width:760px;margin:auto;background:#fff;padding:28px;color:#211923}.invoice-head{display:flex;justify-content:space-between;border-bottom:2px solid #5d1738;padding-bottom:14px}.invoice-brand{font-size:24px;font-weight:800;color:#5d1738}.invoice-sub,.invoice-meta span,.invoice-customer,.invoice-note,.invoice-footer{font-size:12px;color:#555}.invoice-meta{text-align:right;display:grid;gap:4px}.invoice-meta strong{color:#5d1738}.invoice-shop{display:flex;justify-content:space-between;padding:10px 0;font-size:11px}.invoice-customer{border:1px solid #ddd;padding:12px;margin:10px 0}.invoice-customer div{display:flex;gap:25px;margin-top:8px}.invoice-customer p{margin:8px 0 0}.invoice-table{width:100%;border-collapse:collapse;font-size:12px}.invoice-table th,.invoice-table td{border-bottom:1px solid #ddd;padding:10px;text-align:left}.invoice-table th:nth-child(n+2),.invoice-table td:nth-child(n+2){text-align:right}.invoice-table small{display:block;color:#777}.invoice-note{margin-top:18px}.invoice-footer{text-align:center;margin-top:28px;border-top:1px solid #ddd;padding-top:12px}@media print{body{background:#fff;padding:0}.invoice-paper{max-width:none}}</style></head><body>'+paper+'<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),500)}</script></body></html>');
   w.document.close();
 }
 async function shareInvoiceImage(){
@@ -293,14 +234,14 @@ async function loadOrderHistory(){
     try{return JSON.parse(localStorage.getItem('maharani-orders')||'[]').map(o=>({...o,date:new Date(o.date)}));}catch(_){return [];}
   }
 }
-async async function renderAdminOrders(){
+async function renderAdminOrders(){
   const box=$('ordersPanel');if(!box)return;
   box.hidden=false;
   box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">iPhone, Android और computer — सभी devices से orders लोड हो रहे हैं…</p></div>';
   const list=await loadOrderHistory();
   const serverError=window.__MAHARANI_ORDERS_ERROR||'';
   if(serverError){
-    box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Orders database से connect नहीं हो पाया।</p><p class="admin-error">Database message: '+serverError+'</p><button type="button" class="button button-dark" id="ordersRefreshBtn">↻ Refresh Orders</button></div>';
+    box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Orders database से connect नहीं हो पाया।</p><p class="admin-error">Database message: '+serverError+'</p><p class="admin-help">Supabase में <b>orders-schema.sql</b> एक बार Run होने के बाद यही panel सभी devices के orders दिखाएगा।</p><button type="button" class="button button-dark" id="ordersRefreshBtn">↻ Refresh Orders</button></div>';
     const rb=$('ordersRefreshBtn');if(rb)rb.onclick=()=>renderAdminOrders();
     return;
   }
@@ -309,33 +250,8 @@ async async function renderAdminOrders(){
     const rb=$('ordersRefreshBtn');if(rb)rb.onclick=()=>renderAdminOrders();
     return;
   }
-  box.innerHTML='<div class="admin-settings-card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Total online orders: <b>'+list.length+'</b> · सभी devices पर same list</p></div><button type="button" class="button button-outline" id="ordersRefreshBtn">↻ Refresh</button></div>'+list.map((o,n)=>{
-    const confirmed=String(o.status||'Pending').toLowerCase()==='confirmed';
-    return '<div class="admin-row"><div><strong>'+o.number+'</strong><small>👤 '+(o.name||'Customer')+' · 📞 '+(o.mobile||'-')+' · 💰 '+money(o.total)+'</small><small>📦 '+o.items.map(i=>i.name+' × '+i.qty).join(', ')+'</small><small>📌 Status: <b>'+((o.status||'Pending'))+'</b> · '+new Date(o.date).toLocaleString('en-IN')+'</small></div><div class="admin-row-actions">'+(confirmed?'<button type="button" class="button button-outline" disabled>✅ Confirmed</button>':'<button type="button" class="button button-dark" data-order-confirm="'+n+'">✅ Confirm Order</button>')+'<button type="button" class="button button-outline" data-order-view="'+n+'">Open</button><button type="button" class="button button-outline" data-order-print="'+n+'">🖨️ Print</button><button type="button" class="button button-danger" data-order-delete="'+n+'">🗑️ Delete</button></div></div>';
-  }).join('')+'</div>';
+  box.innerHTML='<div class="admin-settings-card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Total online orders: <b>'+list.length+'</b> · सभी devices पर same list</p></div><button type="button" class="button button-outline" id="ordersRefreshBtn">↻ Refresh</button></div>'+list.map((o,n)=>'<div class="admin-row"><div><strong>'+o.number+'</strong><small>👤 '+(o.name||'Customer')+' · 📞 '+(o.mobile||'-')+' · 💰 '+money(o.total)+'</small><small>📦 '+o.items.map(i=>i.name+' × '+i.qty).join(', ')+'</small><small>📌 Status: '+(o.status||'Pending')+' · '+new Date(o.date).toLocaleString('en-IN')+'</small></div><div class="admin-row-actions"><button type="button" class="button button-outline" data-order-view="'+n+'">Open</button><button type="button" class="button button-outline" data-order-print="'+n+'">🖨️ Print</button><button type="button" class="button button-danger" data-order-delete="'+n+'">🗑️ Delete</button></div></div>').join('')+'</div>';
   const refresh=$('ordersRefreshBtn');if(refresh)refresh.onclick=()=>renderAdminOrders();
-  box.querySelectorAll('[data-order-confirm]').forEach(btn=>btn.onclick=async()=>{
-    const o=list[Number(btn.dataset.orderConfirm)];if(!o)return;
-    btn.disabled=true;btn.textContent='Confirming…';
-    const phone=String(o.mobile||'').replace(/\D/g,'');
-    const waPhone=phone.length===10?'91'+phone:phone;
-    const waWindow=waPhone?window.open('about:blank','_blank'):null;
-    try{
-      const client=await getSupabaseClient();
-      const {error}=await client.from('Orders').update({status:'Confirmed'}).eq('id',o.id);
-      if(error)throw error;
-      o.status='Confirmed';lastInvoice=o;saveInvoiceDraft();saveOrderToHistory(o);
-      const mrpTotal=invoiceMrpTotal(o),discount=invoiceDiscount(o);
-      const textMsg='👑 Maharani Saree Collection\n\n✅ आपका Order Successful और Confirm हो गया है।\n🧾 BILL / ORDER: '+o.number+'\n👤 Customer: '+(o.name||'Customer')+'\n📞 Mobile: '+(o.mobile||'-')+'\n\n'+o.items.map(i=>'• '+i.name+' × '+i.qty+' | MRP '+money(getInvoiceItemMrp(i))+' | Price '+money(i.price)+' | Amount '+money(i.total)).join('\\n')+'\n\nMRP Total: '+money(mrpTotal)+'\nDiscount / Saving: '+money(discount)+'\n💰 TOTAL PAYMENT: '+money(o.total)+'\n\n📞 किसी जानकारी के लिए: 9097900814\nधन्यवाद! ❤️';
-      if(waWindow)waWindow.location.href='https://wa.me/'+waPhone+'?text='+encodeURIComponent(textMsg);
-      else toast('Customer mobile number नहीं मिला, इसलिए WhatsApp नहीं खुला।');
-      toast('✅ Order Confirm हो गया · Customer के नंबर पर Bill + Order Successful भेजा गया');
-      await renderAdminOrders();
-    }catch(err){
-      if(waWindow)waWindow.close();
-      btn.disabled=false;btn.textContent='✅ Confirm Order';toast('Confirm failed: '+(err?.message||err));
-    }
-  });
   box.querySelectorAll('[data-order-view]').forEach(btn=>btn.onclick=()=>{lastInvoice=list[Number(btn.dataset.orderView)];renderInvoice();openInvoice();});
   box.querySelectorAll('[data-order-print]').forEach(btn=>btn.onclick=()=>{lastInvoice=list[Number(btn.dataset.orderPrint)];renderInvoice();printInvoice();});
   box.querySelectorAll('[data-order-delete]').forEach(btn=>btn.onclick=async()=>{const o=list[Number(btn.dataset.orderDelete)];if(!o||!confirm('इस order/bill को delete करें?'))return;const {error}=await getSupabaseClient().then(client=>client.from('Orders').delete().eq('id',o.id));if(error){toast('Delete failed: '+error.message);return;}renderAdminOrders();toast('Order deleted ✓');});
@@ -383,19 +299,10 @@ function loadSupabaseClient(){
       }catch(e){reject(e);}
     };
     if(window.supabase?.createClient){finish();return;}
-    const urls=[
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
-      'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js'
-    ];
-    let i=0;
-    const tryNext=()=>{
-      if(window.supabase?.createClient){finish();return;}
-      if(i>=urls.length){reject(new Error('Supabase library load नहीं हो सकी'));return;}
-      const s=document.createElement('script');
-      s.src=urls[i++];s.async=true;s.onload=finish;s.onerror=tryNext;
-      document.head.appendChild(s);
-    };
-    tryNext();
+    const s=document.createElement('script');
+    s.src='https://unpkg.com/@supabase/supabase-js@2';
+    s.async=true;s.onload=finish;s.onerror=()=>reject(new Error('Supabase library load नहीं हो सकी'));
+    document.head.appendChild(s);
   });
 }
 function injectAdmin(){
@@ -554,76 +461,17 @@ async function deleteAdminProduct(id){
   await refreshAdminList();await loadProducts();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();toast('Product deleted');
 }
 function maybeAdminHash(){if(location.hash.toLowerCase()==='#admin'){openAdmin();}}
-document.addEventListener('DOMContentLoaded',async()=>{
+document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('a[href="#admin"]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();openAdmin();}));
 });
 async function init(){
+  const isRecovery=await maybePasswordRecovery();
+  if(isRecovery)return;
   initOfferNotification();
-  window.addEventListener('hashchange',maybeAdminHash);
-  maybeAdminHash();
+  await loadProducts();rebuildCategories();renderCategoryFilter();$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(SITE_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
+  $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
+  $('orderForm').onsubmit=async e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);const saved=await saveOrderToServer(inv);if(!saved){toast('❌ Order database में save नहीं हुआ: '+(inv.serverError||'unknown error'));return;}lastInvoice=saved;saveOrderToHistory(saved);const message='👑 MAHARANI SAREE COLLECTION\\n\\n🛒 NEW ORDER\\n🧾 Order No: '+inv.number+'\\n\\n1️⃣ नाम: '+inv.name+'\\n2️⃣ मोबाइल: '+inv.mobile+'\\n3️⃣ पता: '+inv.address+'\\n4️⃣ PIN: '+inv.pin+'\\n\\n5️⃣ सामान: '+inv.items.map(i=>i.name+' ('+i.category+')').join(', ')+'\\n6️⃣ Qty: '+inv.items.reduce((s,i)=>s+Number(i.qty||0),0)+'\\n7️⃣ रेट: '+inv.items.map(i=>money(i.price)).join(', ')+'\\n8️⃣ कुल: '+money(inv.total);$('checkoutDialog').close();cart=[];saveCart();renderCart();toast('✅ Order database में save हो गया');window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');};
+  window.addEventListener('hashchange',maybeAdminHash);maybeAdminHash();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
-  renderCart();
-  renderCategoryFilter();
-  renderCategories();
-  renderProducts();
-  const CUSTOMER_URL=SITE_URL+'?v=20260923products9';
-  $('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(CUSTOMER_URL);
-  $('siteUrl').textContent=SITE_URL;
-  $('searchInput').oninput=renderProducts;
-  $('categoryFilter').onchange=renderProducts;
-  $('cartOpen').onclick=openDrawer;
-  $('cartClose').onclick=closeDrawer;
-  $('drawerOverlay').onclick=closeDrawer;
-  $('checkoutOpen').onclick=openCheckout;
-  $('dialogClose').onclick=()=>$('productDialog').close();
-  $('checkoutClose').onclick=()=>$('checkoutDialog').close();
-  $('invoiceClose').onclick=()=>$('invoiceDialog').close();
-  $('invoicePrint').onclick=printInvoice;
-  $('invoiceShare').onclick=shareInvoiceImage;
-  $('invoiceModify').onclick=modifyInvoice;
-  $('invoiceDelete').onclick=deleteInvoice;
-  $('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
-
-  $('orderForm').onsubmit=e=>{
-    e.preventDefault();
-    const data=new FormData(e.target);
-    const inv=createInvoice(data);
-    const mrpTotal=invoiceMrpTotal(inv),discount=invoiceDiscount(inv);
-    const message=`👑 MAHARANI SAREE COLLECTION
-
-🛒 NEW ORDER / BILL
-🧾 Order No: ${inv.number}
-
-1️⃣ नाम: ${inv.name}
-2️⃣ मोबाइल: ${inv.mobile}
-3️⃣ पता: ${inv.address}
-4️⃣ PIN: ${inv.pin}
-
-📦 सामान:
-${inv.items.map(i=>'• '+i.name+' ('+i.category+') × '+i.qty+' | MRP '+money(getInvoiceItemMrp(i))+' | Price '+money(i.price)+' | Amount '+money(i.total)).join('\\n')}
-
-💰 MRP Total: ${money(mrpTotal)}
-🎁 Discount / Saving: ${money(discount)}
-💵 TOTAL PAYMENT: ${money(inv.total)}
-
-📞 Maharani Saree Collection: 9097900814
-
-🌐 Website: ${SITE_URL}
-👉 दोबारा वेबसाइट खोलकर नई कलेक्शन देखें और Shopping करें।
-
-धन्यवाद! ❤️`;
-    $('checkoutDialog').close();
-    cart=[];
-    saveCart();
-    renderCart();
-    toast('Order + Bill WhatsApp पर भेज दिया गया ✓');
-    window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');
-    saveOrderToServer(inv).then(saved=>{
-      if(saved){lastInvoice=saved;saveOrderToHistory(saved);}
-    });
-  };
-
-  loadProducts().catch(error=>console.error('Background product load failed:',error));
-  maybePasswordRecovery().catch(error=>console.error('Password recovery check failed:',error));
 }
 init()
