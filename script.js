@@ -529,6 +529,10 @@ ${inv.items.map(i=>'• '+i.name+' ('+i.category+') × '+i.qty+' | MRP '+money(g
 💵 TOTAL PAYMENT: ${money(inv.total)}
 
 📞 Maharani Saree Collection: 9097900814
+
+🌐 Website: ${SITE_URL}
+👉 दोबारा वेबसाइट खोलकर नई कलेक्शन देखें और Shopping करें।
+
 धन्यवाद! ❤️`;
   $('checkoutDialog').close();
   cart=[];
