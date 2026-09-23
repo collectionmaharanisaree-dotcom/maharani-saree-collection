@@ -197,9 +197,13 @@ async function saveOrderToServer(inv){
   try{
     const client=await getSupabaseClient();
     const payload={bill_no:inv.number,customer_name:inv.name||'',mobile:inv.mobile||'',address:inv.address||'',pin:inv.pin||'',items:inv.items||[],subtotal:Number(inv.subtotal||0),discount:Number(inv.discount||0),total:Number(inv.total||0),status:'Pending',gst:inv.gst||'10BZYPB5853J1Z3'};
-    const {data,error}=await client.from('Orders').upsert(payload,{onConflict:'bill_no'}).select().single();
+    // Public checkout is allowed to INSERT orders, but anon is intentionally not
+    // allowed to SELECT all orders. Do not use upsert(...).select() here:
+    // that would require a SELECT RLS policy and makes checkout fail on other devices.
+    const {error}=await client.from('Orders').insert(payload);
     if(error)throw error;
-    inv.id=data.id;inv.date=new Date(data.created_at||inv.date);saveInvoiceDraft();
+    inv.serverError='';
+    saveInvoiceDraft();
     return inv;
   }catch(e){
     console.error('Order save failed:',e);
