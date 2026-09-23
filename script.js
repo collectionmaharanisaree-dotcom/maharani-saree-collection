@@ -501,7 +501,7 @@ async function deleteAdminProduct(id){
   await refreshAdminList();await loadProducts();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();toast('Product deleted');
 }
 function maybeAdminHash(){if(location.hash.toLowerCase()==='#admin'){openAdmin();}}
-document.addEventListener('DOMContentLoaded',()=>{
+document.addEventListener('DOMContentLoaded',async()=>{
   document.querySelectorAll('a[href="#admin"]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();openAdmin();}));
 });
 async function init(){
