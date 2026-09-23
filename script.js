@@ -157,41 +157,35 @@ function openCheckout(){if(!cart.length)return toast('Add a product before check
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2400);}
 let lastInvoice=null;
 function makeInvoiceNumber(){const d=new Date(),date=d.getFullYear().toString().slice(-2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');return 'MSC-'+date+'-'+String(Date.now()).slice(-5);}
+function getInvoiceItemMrp(i){
+  const stored=toNumber(i.mrp);
+  if(stored>0)return stored;
+  const p=products.find(x=>String(x.name).toLowerCase()===String(i.name||'').toLowerCase()&&(!i.category||x.category===i.category));
+  return toNumber(p?.mrp)||toNumber(i.price);
+}
+function invoiceMrpTotal(x){
+  return x.items.reduce((sum,i)=>sum+getInvoiceItemMrp(i)*toNumber(i.qty),0);
+}
+function invoiceDiscount(x){
+  return Math.max(0,invoiceMrpTotal(x)-toNumber(x.total));
+}
 function createInvoice(data){
-  const items=cart.map(x=>{const p=findProduct(x.id);return p?{name:p.name,category:p.category,qty:toNumber(x.qty),price:p.price,total:p.price*toNumber(x.qty),image:p.image}:null;}).filter(Boolean);
-  lastInvoice={number:makeInvoiceNumber(),date:new Date(),name:String(data.get('name')||''),mobile:String(data.get('mobile')||''),address:String(data.get('address')||''),pin:String(data.get('pin')||''),items,total:cartTotal(),subtotal:cartTotal(),discount:0,gst:getSettingsConfig().gst||'10BZYPB5853J1Z3'};
+  const items=cart.map(x=>{const p=findProduct(x.id);return p?{name:p.name,category:p.category,qty:toNumber(x.qty),price:p.price,mrp:p.mrp,total:p.price*toNumber(x.qty),image:p.image}:null;}).filter(Boolean);
+  const total=cartTotal();
+  const mrpTotal=items.reduce((sum,i)=>sum+toNumber(i.mrp)*toNumber(i.qty),0);
+  lastInvoice={number:makeInvoiceNumber(),date:new Date(),name:String(data.get('name')||''),mobile:String(data.get('mobile')||''),address:String(data.get('address')||''),pin:String(data.get('pin')||''),items,total,subtotal:mrpTotal,discount:Math.max(0,mrpTotal-total),gst:getSettingsConfig().gst||'10BZYPB5853J1Z3'};
   renderInvoice();saveInvoiceDraft();saveOrderToHistory(lastInvoice); return lastInvoice;
 }
 function renderInvoice(){
   if(!lastInvoice)return;
   const x=lastInvoice;
-  $('invoicePreview').innerHTML='<div class="invoice-paper" id="invoicePaper"><div class="invoice-head"><div><div class="invoice-brand">👑 Maharani Saree Collection</div><div class="invoice-sub">Derni Bazar, Saran, Bihar — 841222</div></div><div class="invoice-meta"><strong>RETAIL BILL</strong><span>Bill No. '+x.number+'</span><span>'+x.date.toLocaleString('en-IN')+'</span></div></div><div class="invoice-shop"><span>GST: '+x.gst+'</span><span>Mob: 9097900814</span></div><div class="invoice-customer"><strong>Customer Details</strong><div><span>Name: '+x.name+'</span><span>Mobile: '+x.mobile+'</span><span>PIN: '+x.pin+'</span></div><p>Address: '+x.address+'</p></div><table class="invoice-table"><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+x.items.map(i=>'<tr><td>'+i.name+'<small>'+i.category+'</small></td><td>'+i.qty+'</td><td>'+money(i.price)+'</td><td>'+money(i.total)+'</td></tr>').join('')+'</tbody><tfoot><tr><th colspan="3">Subtotal</th><th>'+money(x.subtotal||x.total)+'</th></tr><tr><th colspan="3">Discount</th><th>- '+money(x.discount||0)+'</th></tr><tr><th colspan="3">Grand Total</th><th>'+money(x.total)+'</th></tr></tfoot></table><div class="invoice-note">धन्यवाद! कृपया सामान/उपलब्धता और अंतिम कीमत दुकान/WhatsApp पर कन्फर्म करें।</div><div class="invoice-footer">Maharani Saree Collection · आपकी पसंद, हमारी जिम्मेदारी!</div></div>';
+  const mrpTotal=invoiceMrpTotal(x), discount=invoiceDiscount(x);
+  $('invoicePreview').innerHTML='<div class="invoice-paper" id="invoicePaper"><div class="invoice-head"><div><div class="invoice-brand">👑 Maharani Saree Collection</div><div class="invoice-sub">Derni Bazar, Saran, Bihar — 841222</div></div><div class="invoice-meta"><strong>RETAIL BILL</strong><span>Bill No. '+x.number+'</span><span>'+x.date.toLocaleString('en-IN')+'</span></div></div><div class="invoice-shop"><span>GST: '+x.gst+'</span><span>Mob: 9097900814</span></div><div class="invoice-customer"><strong>Customer Details</strong><div><span>Name: '+x.name+'</span><span>Mobile: '+x.mobile+'</span><span>PIN: '+x.pin+'</span></div><p>Address: '+x.address+'</p></div><table class="invoice-table"><thead><tr><th>Product</th><th>Qty</th><th>MRP</th><th>Price</th><th>Amount</th></tr></thead><tbody>'+x.items.map(i=>'<tr><td>'+i.name+'<small>'+i.category+'</small></td><td>'+i.qty+'</td><td>'+money(getInvoiceItemMrp(i))+'</td><td>'+money(i.price)+'</td><td>'+money(i.total)+'</td></tr>').join('')+'</tbody><tfoot><tr><th colspan="4">MRP Total</th><th>'+money(mrpTotal)+'</th></tr><tr><th colspan="4">Discount / Saving</th><th>- '+money(discount)+'</th></tr><tr><th colspan="4">Total Payment</th><th>'+money(x.total)+'</th></tr></tfoot></table><div class="invoice-note">MRP और selling price अलग-अलग दिखाए गए हैं। Total Payment में केवल selling price है।</div><div class="invoice-footer">Maharani Saree Collection · आपकी पसंद, हमारी जिम्मेदारी!</div></div>';
 }
 function invoiceText(){
   if(!lastInvoice)return '';
-  const x=lastInvoice;
-  return '👑 Maharani Saree Collection\\n\\n🧾 Bill No: '+x.number+'\\nCustomer: '+x.name+'\\nMobile: '+x.mobile+'\\nAddress: '+x.address+'\\nPIN: '+x.pin+'\\n\\nItems:\\n'+x.items.map(i=>'• '+i.name+' × '+i.qty+' = '+money(i.total)).join('\\n')+'\\n\\n💰 Grand Total: '+money(x.total)+'\\n\\nGST: '+x.gst+'\\nThank you for shopping with Maharani Saree Collection!';
-}
-function printInvoice(){
-  if(!lastInvoice)return;
-  const paper=$('invoicePaper')?.outerHTML||'';
-  const w=window.open('','_blank','width=800,height=900');
-  if(!w){toast('Popup allow karke Print Bill dobara dabaiye');return;}
-  w.document.write('<!doctype html><html><head><title>Maharani Bill '+lastInvoice.number+'</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;background:#eee;margin:0;padding:20px}.invoice-paper{max-width:760px;margin:auto;background:#fff;padding:28px;color:#211923}.invoice-head{display:flex;justify-content:space-between;border-bottom:2px solid #5d1738;padding-bottom:14px}.invoice-brand{font-size:24px;font-weight:800;color:#5d1738}.invoice-sub,.invoice-meta span,.invoice-customer,.invoice-note,.invoice-footer{font-size:12px;color:#555}.invoice-meta{text-align:right;display:grid;gap:4px}.invoice-meta strong{color:#5d1738}.invoice-shop{display:flex;justify-content:space-between;padding:10px 0;font-size:11px}.invoice-customer{border:1px solid #ddd;padding:12px;margin:10px 0}.invoice-customer div{display:flex;gap:25px;margin-top:8px}.invoice-customer p{margin:8px 0 0}.invoice-table{width:100%;border-collapse:collapse;font-size:12px}.invoice-table th,.invoice-table td{border-bottom:1px solid #ddd;padding:10px;text-align:left}.invoice-table th:nth-child(n+2),.invoice-table td:nth-child(n+2){text-align:right}.invoice-table small{display:block;color:#777}.invoice-note{margin-top:18px}.invoice-footer{text-align:center;margin-top:28px;border-top:1px solid #ddd;padding-top:12px}@media print{body{background:#fff;padding:0}.invoice-paper{max-width:none}}</style></head><body>'+paper+'<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),500)}</script></body></html>');
-  w.document.close();
-}
-async function shareInvoiceImage(){
-  if(!lastInvoice)return;
-  const paper=$('invoicePaper');if(!paper)return;
-  if(!window.html2canvas){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';s.onload=()=>shareInvoiceImage();s.onerror=()=>toast('Bill photo tool load नहीं हुआ');document.head.appendChild(s);return;}
-  try{
-    toast('Bill photo तैयार हो रहा है…');
-    const canvas=await window.html2canvas(paper,{scale:2,backgroundColor:'#ffffff',useCORS:true});
-    const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));
-    const file=new File([blob],'Maharani-Bill-'+lastInvoice.number+'.png',{type:'image/png'});
-    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:'Maharani Saree Collection Bill',text:'Bill '+lastInvoice.number,files:[file]});}
-    else{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Bill photo download हो गई ✓');}
-  }catch(e){if(e?.name!=='AbortError')toast('Bill photo share नहीं हो पाया');}
+  const x=lastInvoice, mrpTotal=invoiceMrpTotal(x), discount=invoiceDiscount(x);
+  return '👑 Maharani Saree Collection\\n\\n🧾 BILL / ORDER\\nOrder No: '+x.number+'\\nCustomer: '+x.name+'\\nMobile: '+x.mobile+'\\nAddress: '+x.address+'\\nPIN: '+x.pin+'\\n\\nItems:\\n'+x.items.map(i=>'• '+i.name+' × '+i.qty+' | MRP '+money(getInvoiceItemMrp(i))+' | Price '+money(i.price)+' | Amount '+money(i.total)).join('\\n')+'\\n\\nMRP Total: '+money(mrpTotal)+'\\nDiscount / Saving: '+money(discount)+'\\n💰 TOTAL PAYMENT: '+money(x.total)+'\\n\\nGST: '+x.gst+'\\nThank you for shopping with Maharani Saree Collection!';
 }
 async function saveOrderToServer(inv){
   try{
@@ -263,10 +257,11 @@ async function renderAdminOrders(){
       const {error}=await client.from('Orders').update({status:'Confirmed'}).eq('id',o.id);
       if(error)throw error;
       o.status='Confirmed';lastInvoice=o;saveInvoiceDraft();saveOrderToHistory(o);
-      const textMsg='👑 Maharani Saree Collection\\n\\n✅ आपका Order Successful और Confirm हो गया है।\\n🧾 Order No: '+o.number+'\\n💰 कुल राशि: '+money(o.total)+'\\n\\n📞 किसी जानकारी के लिए: 9097900814\\nधन्यवाद! ❤️';
+      const mrpTotal=invoiceMrpTotal(o),discount=invoiceDiscount(o);
+      const textMsg='👑 Maharani Saree Collection\\n\\n✅ आपका Order Successful और Confirm हो गया है।\\n🧾 BILL / ORDER: '+o.number+'\\n👤 Customer: '+(o.name||'Customer')+'\\n\\n'+o.items.map(i=>'• '+i.name+' × '+i.qty+' | MRP '+money(getInvoiceItemMrp(i))+' | Price '+money(i.price)+' | Amount '+money(i.total)).join('\\n')+'\\n\\nMRP Total: '+money(mrpTotal)+'\\nDiscount / Saving: '+money(discount)+'\\n💰 TOTAL PAYMENT: '+money(o.total)+'\\n\\n📞 किसी जानकारी के लिए: 9097900814\\nधन्यवाद! ❤️';
       const phone=String(o.mobile||'').replace(/\\D/g,'');
       if(phone)window.open('https://wa.me/'+(phone.length===10?'91'+phone:phone)+'?text='+encodeURIComponent(textMsg),'_blank','noopener');
-      toast('✅ Order Confirm हो गया · Customer WhatsApp message भेजें');
+      toast('✅ Order Confirm हो गया · Bill details WhatsApp पर भेजें');
       await renderAdminOrders();
     }catch(e){
       btn.disabled=false;btn.textContent='✅ Confirm Order';toast('Confirm failed: '+(e?.message||e));
