@@ -67,19 +67,19 @@ function showSupabaseError(message) {
   document.body.prepend(box);
 }
 async function loadProducts() {
-  const requestUrl = SUPABASE_URL + '/functions/v1/bright-task';
   try {
-    const response = await fetch(requestUrl,{method:'GET',cache:'no-store'});
-    const body = await response.text();
-    if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
-    const data = JSON.parse(body);
-    if(!Array.isArray(data)) throw new Error('Invalid products response');
-    siteSettings = data.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
+    // Customer website reads the public Products table directly.
+    // This avoids the Edge Function and works on QR/mobile devices as well.
+    const client = await getSupabaseClient();
+    const {data,error} = await client.from('Products').select('*').order('id',{ascending:false});
+    if(error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    siteSettings = rows.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
     siteSettingsId = siteSettings?.id || null;
-    products = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
+    products = rows.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
     applySiteSettings();
   } catch(error) {
-    console.error(error);
+    console.error('Customer product loading failed:',error);
     products = [];
     showSupabaseError(String(error?.message || error));
   }
