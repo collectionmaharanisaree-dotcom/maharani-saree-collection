@@ -70,39 +70,52 @@ function showSupabaseError(message) {
   document.body.prepend(box);
 }
 async function loadProducts() {
-  const controller = new AbortController();
-  const timeout = setTimeout(()=>controller.abort(), 15000);
   const readRows = async (url, headers={}) => {
-    const response = await fetch(url,{method:'GET',cache:'no-store',signal:controller.signal,headers});
-    const body = await response.text();
-    if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
-    const data = JSON.parse(body);
-    if(!Array.isArray(data)) throw new Error('Invalid products response');
-    return data;
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 12000);
+    try {
+      const response = await fetch(url,{method:'GET',cache:'no-store',signal:controller.signal,headers});
+      const body = await response.text();
+      if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
+      const data = JSON.parse(body);
+      if(!Array.isArray(data)) throw new Error('Invalid products response');
+      return data;
+    } finally {
+      clearTimeout(timeout);
+    }
   };
   try {
     let data = [];
     let lastError = null;
+
+    // Read the public Products table first. This is the most direct and reliable
+    // customer-page path and does not depend on the Edge Function.
     try {
-      data = await readRows(SUPABASE_URL + '/functions/v1/bright-task');
+      data = await readRows(
+        SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc',
+        {apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY}
+      );
     } catch(e) {
       lastError = e;
     }
+
+    // Keep the existing Edge Function as a secondary compatibility path.
     const realProducts = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__');
     if(!realProducts.length) {
       try {
-        data = await readRows(
-          SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc',
-          {apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY}
-        );
+        data = await readRows(SUPABASE_URL + '/functions/v1/bright-task');
       } catch(e) {
-        if(lastError) throw new Error('Product service failed.\\n\\nBright task: '+lastError.message+'\\n\\nREST: '+e.message);
+        if(lastError) throw new Error('Product service failed.\\n\\nREST: '+lastError.message+'\\n\\nBright task: '+e.message);
         throw e;
       }
     }
+
     siteSettings = data.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
     siteSettingsId = siteSettings?.id || null;
-    products = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
+    products = data
+      .filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__')
+      .map(normalizeProduct);
+
     rebuildCategories();
     applySiteSettings();
     renderCategoryFilter();
@@ -113,8 +126,6 @@ async function loadProducts() {
     products = [];
     categories = [];
     showSupabaseError(String(error?.message || error));
-  } finally {
-    clearTimeout(timeout);
   }
 }
 function applyText(id,value){const el=$(id);if(el&&value!=null)el.textContent=value;}
@@ -555,7 +566,7 @@ async function init(){
   renderCategoryFilter();
   renderCategories();
   renderProducts();
-  const CUSTOMER_URL=SITE_URL+'?v=20260923products8';
+  const CUSTOMER_URL=SITE_URL+'?v=20260923products9';
   $('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(CUSTOMER_URL);
   $('siteUrl').textContent=SITE_URL;
   $('searchInput').oninput=renderProducts;
