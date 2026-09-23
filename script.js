@@ -67,26 +67,45 @@ function showSupabaseError(message) {
   document.body.prepend(box);
 }
 async function loadProducts() {
-  const requestUrl = SUPABASE_URL + '/functions/v1/bright-task';
   const controller = new AbortController();
   const timeout = setTimeout(()=>controller.abort(), 15000);
-  try {
-    const response = await fetch(requestUrl, {
-      method:'GET',
-      cache:'no-store',
-      signal:controller.signal
-    });
+  const readRows = async (url, headers={}) => {
+    const response = await fetch(url,{method:'GET',cache:'no-store',signal:controller.signal,headers});
     const body = await response.text();
     if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
     const data = JSON.parse(body);
     if(!Array.isArray(data)) throw new Error('Invalid products response');
+    return data;
+  };
+  try {
+    let data = [];
+    let lastError = null;
+    try {
+      data = await readRows(SUPABASE_URL + '/functions/v1/bright-task');
+    } catch(e) {
+      lastError = e;
+    }
+    const realProducts = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__');
+    if(!realProducts.length) {
+      try {
+        data = await readRows(
+          SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc',
+          {apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY}
+        );
+      } catch(e) {
+        if(lastError) throw new Error('Product service failed.\\n\\nBright task: '+lastError.message+'\\n\\nREST: '+e.message);
+        throw e;
+      }
+    }
     siteSettings = data.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
     siteSettingsId = siteSettings?.id || null;
     products = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
+    rebuildCategories();
     applySiteSettings();
   } catch(error) {
     console.error('Customer product loading failed:',error);
     products = [];
+    categories = [];
     showSupabaseError(String(error?.message || error));
   } finally {
     clearTimeout(timeout);
