@@ -528,6 +528,7 @@ async function init(){
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
+
   renderCart();
   renderCategories();
   renderProducts();
@@ -548,14 +549,13 @@ async function init(){
   $('invoiceModify').onclick=modifyInvoice;
   $('invoiceDelete').onclick=deleteInvoice;
   $('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
+
   $('orderForm').onsubmit=e=>{
-  $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
-  $('orderForm').onsubmit=e=>{
-  e.preventDefault();
-  const data=new FormData(e.target);
-  const inv=createInvoice(data);
-  const mrpTotal=invoiceMrpTotal(inv),discount=invoiceDiscount(inv);
-  const message=`👑 MAHARANI SAREE COLLECTION
+    e.preventDefault();
+    const data=new FormData(e.target);
+    const inv=createInvoice(data);
+    const mrpTotal=invoiceMrpTotal(inv),discount=invoiceDiscount(inv);
+    const message=`👑 MAHARANI SAREE COLLECTION
 
 🛒 NEW ORDER / BILL
 🧾 Order No: ${inv.number}
@@ -578,27 +578,22 @@ ${inv.items.map(i=>'• '+i.name+' ('+i.category+') × '+i.qty+' | MRP '+money(g
 👉 दोबारा वेबसाइट खोलकर नई कलेक्शन देखें और Shopping करें।
 
 धन्यवाद! ❤️`;
-  $('checkoutDialog').close();
-  cart=[];
-  saveCart();
-  renderCart();
-  toast('Order + Bill WhatsApp पर भेज दिया गया ✓');
-  window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');
-  saveOrderToServer(inv).then(saved=>{
-    if(saved){
-      lastInvoice=saved;
-      saveOrderToHistory(saved);
-    }
-  });
-};
+    $('checkoutDialog').close();
+    cart=[];
+    saveCart();
+    renderCart();
+    toast('Order + Bill WhatsApp पर भेज दिया गया ✓');
+    window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');
+    saveOrderToServer(inv).then(saved=>{
+      if(saved){lastInvoice=saved;saveOrderToHistory(saved);}
+    });
   };
+
   loadProducts().then(()=>{
     rebuildCategories();
     renderCategoryFilter();
     renderCategories();
     renderProducts();
-  }).catch(error=>{
-    console.error('Background product load failed:',error);
-  });
+  }).catch(error=>console.error('Background product load failed:',error));
 }
 init()
