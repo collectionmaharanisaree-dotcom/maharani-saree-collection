@@ -68,18 +68,27 @@ function showSupabaseError(message) {
 }
 async function loadProducts() {
   try {
-    // Customer website reads the public Products table directly.
-    // This avoids the Edge Function and works on QR/mobile devices as well.
-    const client = await getSupabaseClient();
-    const {data,error} = await client.from('Products').select('*').order('id',{ascending:false});
-    if(error) throw error;
-    const rows = Array.isArray(data) ? data : [];
+    // Customer page: use the public Supabase REST API directly.
+    // This avoids waiting for the Supabase JS library on mobile/QR devices.
+    const url = SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc';
+    const response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: 'Bearer ' + SUPABASE_ANON_KEY
+      }
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(response.status + ' ' + response.statusText + '\n' + body);
+    const rows = JSON.parse(body);
+    if (!Array.isArray(rows)) throw new Error('Invalid Products response');
     siteSettings = rows.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
     siteSettingsId = siteSettings?.id || null;
     products = rows.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
     applySiteSettings();
   } catch(error) {
-    console.error('Customer product loading failed:',error);
+    console.error('Customer product loading failed:', error);
     products = [];
     showSupabaseError(String(error?.message || error));
   }
@@ -508,7 +517,7 @@ async function init(){
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
   initOfferNotification();
-  await loadProducts();rebuildCategories();renderCategoryFilter();const CUSTOMER_URL=SITE_URL+'?v=20260923products2';$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(CUSTOMER_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
+  await loadProducts();rebuildCategories();renderCategoryFilter();const CUSTOMER_URL=SITE_URL+'?v=20260923products3';$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(CUSTOMER_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
   $('orderForm').onsubmit=e=>{
   e.preventDefault();
