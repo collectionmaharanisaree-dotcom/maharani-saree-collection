@@ -68,27 +68,31 @@ function showSupabaseError(message) {
 }
 async function loadProducts() {
   try {
-    // Customer page: use the public Supabase REST API directly.
-    // This avoids waiting for the Supabase JS library on mobile/QR devices.
-    const url = SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc';
-    const response = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: 'Bearer ' + SUPABASE_ANON_KEY
-      }
-    });
-    const body = await response.text();
-    if (!response.ok) throw new Error(response.status + ' ' + response.statusText + '\n' + body);
-    const rows = JSON.parse(body);
-    if (!Array.isArray(rows)) throw new Error('Invalid Products response');
+    let rows = null;
+    let restError = null;
+    try {
+      const url = SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc';
+      const response = await fetch(url, {method:'GET',cache:'no-store',headers:{apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY}});
+      const body = await response.text();
+      if(!response.ok) throw new Error(response.status+' '+response.statusText+'\n'+body);
+      rows = JSON.parse(body);
+      if(!Array.isArray(rows)) throw new Error('Invalid Products response');
+    } catch(error) {
+      restError = error;
+    }
+    if(!rows){
+      const client = await getSupabaseClient();
+      const result = await client.from('Products').select('*').order('id',{ascending:false});
+      if(result.error) throw result.error;
+      rows = Array.isArray(result.data) ? result.data : [];
+    }
     siteSettings = rows.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
     siteSettingsId = siteSettings?.id || null;
     products = rows.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
     applySiteSettings();
+    if(restError) console.warn('REST product loading fell back to Supabase client:',restError);
   } catch(error) {
-    console.error('Customer product loading failed:', error);
+    console.error('Customer product loading failed:',error);
     products = [];
     showSupabaseError(String(error?.message || error));
   }
