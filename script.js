@@ -295,13 +295,6 @@ function injectAdmin(){
   if(settingsBtn) settingsBtn.onclick=()=>{$('siteSettings').hidden=!$('siteSettings').hidden;if(!$('siteSettings').hidden)injectSiteSettings();};
   $('ordersBtn').onclick=()=>renderAdminOrders();$('adminClose').onclick=closeAdmin;$('adminForgotBtn').onclick=adminForgotPassword;$('newProductBtn').onclick=()=>resetAdminForm();$('adminCancelBtn').onclick=()=>resetAdminForm();$('adminLoginBtn').onclick=adminLogin;$('adminLogoutBtn').onclick=adminLogout;$('productForm').onsubmit=saveAdminProduct;$('adminPhotos').onchange=previewAdminPhotos;
 }
-function renderAdminOrders(){
-  const box=$('ordersPanel'); if(!box)return;
-  box.hidden=false;
-  const inv=lastInvoice;
-  box.innerHTML='<div class="admin-settings-card"><h3>🧾 Orders / Bills</h3>'+(!inv?'<p class="admin-muted">अभी कोई bill उपलब्ध नहीं है।</p>':'<div class="admin-row"><div><strong>'+inv.number+'</strong><small>'+inv.name+' · '+inv.mobile+' · '+money(inv.total)+'</small></div><div class="admin-row-actions"><button type="button" class="button button-outline" id="adminPrintBill">🖨️ Print</button><button type="button" class="button button-outline" id="adminModifyBill">✏️ Modify</button><button type="button" class="button button-danger" id="adminDeleteBill">🗑️ Delete</button></div></div>')+'</div>';
-  if(inv){$('adminPrintBill').onclick=printInvoice;$('adminModifyBill').onclick=()=>{modifyInvoice();renderAdminOrders();};$('adminDeleteBill').onclick=()=>{deleteInvoice();renderAdminOrders();};}
-}
 function openAdmin(){injectAdmin();$('adminPanel').hidden=false;document.body.classList.add('admin-open');loadSupabaseClient().then(refreshAdminSession).catch(e=>{$('adminLoginMsg').textContent='Could not load admin login: '+e.message;});}
 function closeAdmin(){if($('adminPanel'))$('adminPanel').hidden=true;document.body.classList.remove('admin-open');history.replaceState(null,'',SITE_URL);}
 
@@ -547,6 +540,7 @@ function injectAdmin(){
   document.body.appendChild(panel);
   setupAdminCategorySelect();
   $('siteSettings').hidden=true;
+  const ordersBtn=$('ordersBtn');if(ordersBtn)ordersBtn.onclick=()=>renderAdminOrders();
   const settingsBtn=$('siteSettingsBtn');
   if(settingsBtn) settingsBtn.onclick=()=>{$('siteSettings').hidden=!$('siteSettings').hidden;if(!$('siteSettings').hidden)injectSiteSettings();};
   $('adminClose').onclick=closeAdmin;$('adminForgotBtn').onclick=adminForgotPassword;$('newProductBtn').onclick=()=>resetAdminForm();$('adminCancelBtn').onclick=()=>resetAdminForm();$('adminLoginBtn').onclick=adminLogin;$('adminLogoutBtn').onclick=adminLogout;$('productForm').onsubmit=saveAdminProduct;$('adminPhotos').onchange=previewAdminPhotos;
