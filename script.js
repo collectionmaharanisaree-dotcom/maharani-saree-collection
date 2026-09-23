@@ -502,8 +502,9 @@ async function init(){
 
 5️⃣ सामान: ${inv.items.map(i=>i.name+' ('+i.category+')').join(', ')}
 6️⃣ Qty: ${inv.items.reduce((s,i)=>s+Number(i.qty||0),0)}
-7️⃣ रेट: ${inv.items.map(i=>money(i.price)).join(', ')}
-8️⃣ कुल: ${money(inv.total)}`;$('checkoutDialog').close();cart=[];saveCart();renderCart();toast('Order WhatsApp पर भेज दिया गया ✓');window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');saveOrderToServer(inv).then(saved=>{if(saved){lastInvoice=saved;saveOrderToHistory(saved);}});};
+7️⃣ MRP: ${inv.items.map(i=>money(i.mrp||i.price)).join(', ')}
+8️⃣ रेट: ${inv.items.map(i=>money(i.price)).join(', ')}
+9️⃣ कुल: ${money(inv.total)}`;$('checkoutDialog').close();cart=[];saveCart();renderCart();toast('Order WhatsApp पर भेज दिया गया ✓');window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');saveOrderToServer(inv).then(saved=>{if(saved){lastInvoice=saved;saveOrderToHistory(saved);}});};
   window.addEventListener('hashchange',maybeAdminHash);maybeAdminHash();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
 }
