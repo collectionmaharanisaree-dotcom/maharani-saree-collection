@@ -160,7 +160,7 @@ function makeInvoiceNumber(){const d=new Date(),date=d.getFullYear().toString().
 function createInvoice(data){
   const items=cart.map(x=>{const p=findProduct(x.id);return p?{name:p.name,category:p.category,qty:toNumber(x.qty),price:p.price,total:p.price*toNumber(x.qty),image:p.image}:null;}).filter(Boolean);
   lastInvoice={number:makeInvoiceNumber(),date:new Date(),name:String(data.get('name')||''),mobile:String(data.get('mobile')||''),address:String(data.get('address')||''),pin:String(data.get('pin')||''),items,total:cartTotal(),subtotal:cartTotal(),discount:0,gst:getSettingsConfig().gst||'10BZYPB5853J1Z3'};
-  renderInvoice();saveInvoiceDraft(); return lastInvoice;
+  renderInvoice();saveInvoiceDraft();saveOrderToHistory(lastInvoice); return lastInvoice;
 }
 function renderInvoice(){
   if(!lastInvoice)return;
@@ -193,6 +193,28 @@ async function shareInvoiceImage(){
     else{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Bill photo download हो गई ✓');}
   }catch(e){if(e?.name!=='AbortError')toast('Bill photo share नहीं हो पाया');}
 }
+function saveOrderToHistory(inv){
+  try{
+    const key='maharani-orders';
+    const list=JSON.parse(localStorage.getItem(key)||'[]');
+    const clean={...inv,date:inv.date instanceof Date?inv.date.toISOString():inv.date};
+    const next=[clean,...list.filter(o=>o.number!==clean.number)].slice(0,100);
+    localStorage.setItem(key,JSON.stringify(next));
+  }catch(e){}
+}
+function loadOrderHistory(){
+  try{return JSON.parse(localStorage.getItem('maharani-orders')||'[]').map(o=>({...o,date:new Date(o.date)});}catch(e){return [];}
+}
+function renderAdminOrders(){
+  const box=$('ordersPanel'); if(!box)return;
+  box.hidden=false;
+  const list=loadOrderHistory();
+  if(!list.length){box.innerHTML='<div class="admin-settings-card"><h3>🧾 Orders / Bills</h3><p class="admin-muted">अभी कोई online order नहीं आया है। Customer के order के बाद यहाँ दिखेगा।</p></div>';return;}
+  box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders</h3><p class="admin-muted">Website से आए orders यहाँ दिखेंगे। किसी order को खोलकर bill Print / Modify / Delete कर सकते हैं।</p>'+list.map((o,n)=>'<div class="admin-row"><div><strong>'+o.number+'</strong><small>👤 '+(o.name||'Customer')+' · 📞 '+(o.mobile||'-')+' · 💰 '+money(o.total)+'</small><small>📦 '+o.items.map(i=>i.name+' × '+i.qty).join(', ')+'</small></div><div class="admin-row-actions"><button type="button" class="button button-outline" data-order-view="'+n+'">Open</button><button type="button" class="button button-outline" data-order-print="'+n+'">🖨️ Print</button><button type="button" class="button button-danger" data-order-delete="'+n+'">🗑️ Delete</button></div></div>').join('')+'</div>';
+  box.querySelectorAll('[data-order-view]').forEach(b=>b.onclick=()=>{lastInvoice=list[Number(b.dataset.orderView)];renderInvoice();openInvoice();});
+  box.querySelectorAll('[data-order-print]').forEach(b=>b.onclick=()=>{lastInvoice=list[Number(b.dataset.orderPrint)];renderInvoice();printInvoice();});
+  box.querySelectorAll('[data-order-delete]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.orderDelete);if(confirm('इस order/bill को delete करें?')){list.splice(i,1);localStorage.setItem('maharani-orders',JSON.stringify(list));renderAdminOrders();toast('Order deleted ✓');}});
+}
 function saveInvoiceDraft(){if(lastInvoice)localStorage.setItem('maharani-last-invoice',JSON.stringify(lastInvoice));}
 function loadInvoiceDraft(){try{const x=JSON.parse(localStorage.getItem('maharani-last-invoice')||'null');if(x){x.date=new Date(x.date);lastInvoice=x;renderInvoice();}}catch(e){}}
 function modifyInvoice(){
@@ -215,7 +237,7 @@ function modifyInvoice(){
   x.discount=Math.max(0,toNumber(discount));
   x.subtotal=x.items.reduce((sum,i)=>sum+Number(i.total||0),0);
   x.total=Math.max(0,x.subtotal-x.discount);
-  saveInvoiceDraft();renderInvoice();toast('Bill modified ✓');
+  saveInvoiceDraft();saveOrderToHistory(lastInvoice);renderInvoice();toast('Bill modified ✓');
 }
 function deleteInvoice(){
   if(!lastInvoice)return;
