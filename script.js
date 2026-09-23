@@ -68,29 +68,20 @@ function showSupabaseError(message) {
 }
 async function loadProducts() {
   try {
-    let rows = null;
-    let restError = null;
-    try {
-      const url = SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc';
-      const response = await fetch(url, {method:'GET',cache:'no-store',headers:{apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY}});
-      const body = await response.text();
-      if(!response.ok) throw new Error(response.status+' '+response.statusText+'\n'+body);
-      rows = JSON.parse(body);
-      if(!Array.isArray(rows)) throw new Error('Invalid Products response');
-    } catch(error) {
-      restError = error;
-    }
-    if(!rows){
-      const client = await getSupabaseClient();
-      const result = await client.from('Products').select('*').order('id',{ascending:false});
-      if(result.error) throw result.error;
-      rows = Array.isArray(result.data) ? result.data : [];
-    }
+    const url = SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc';
+    const response = await fetch(url, {
+      method:'GET',
+      cache:'no-store',
+      headers:{apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY}
+    });
+    const body = await response.text();
+    if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
+    const rows = JSON.parse(body);
+    if(!Array.isArray(rows)) throw new Error('Invalid Products response');
     siteSettings = rows.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
     siteSettingsId = siteSettings?.id || null;
     products = rows.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
     applySiteSettings();
-    if(restError) console.warn('REST product loading fell back to Supabase client:',restError);
   } catch(error) {
     console.error('Customer product loading failed:',error);
     products = [];
@@ -352,10 +343,19 @@ function loadSupabaseClient(){
       }catch(e){reject(e);}
     };
     if(window.supabase?.createClient){finish();return;}
-    const s=document.createElement('script');
-    s.src='https://unpkg.com/@supabase/supabase-js@2';
-    s.async=true;s.onload=finish;s.onerror=()=>reject(new Error('Supabase library load नहीं हो सकी'));
-    document.head.appendChild(s);
+    const urls=[
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
+      'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js'
+    ];
+    let i=0;
+    const tryNext=()=>{
+      if(window.supabase?.createClient){finish();return;}
+      if(i>=urls.length){reject(new Error('Supabase library load नहीं हो सकी'));return;}
+      const s=document.createElement('script');
+      s.src=urls[i++];s.async=true;s.onload=finish;s.onerror=tryNext;
+      document.head.appendChild(s);
+    };
+    tryNext();
   });
 }
 function injectAdmin(){
