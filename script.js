@@ -159,13 +159,13 @@ let lastInvoice=null;
 function makeInvoiceNumber(){const d=new Date(),date=d.getFullYear().toString().slice(-2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');return 'MSC-'+date+'-'+String(Date.now()).slice(-5);}
 function createInvoice(data){
   const items=cart.map(x=>{const p=findProduct(x.id);return p?{name:p.name,category:p.category,qty:toNumber(x.qty),price:p.price,total:p.price*toNumber(x.qty),image:p.image}:null;}).filter(Boolean);
-  lastInvoice={number:makeInvoiceNumber(),date:new Date(),name:String(data.get('name')||''),mobile:String(data.get('mobile')||''),address:String(data.get('address')||''),pin:String(data.get('pin')||''),items,total:cartTotal(),gst:getSettingsConfig().gst||'10BZYPB5853J1Z3'};
+  lastInvoice={number:makeInvoiceNumber(),date:new Date(),name:String(data.get('name')||''),mobile:String(data.get('mobile')||''),address:String(data.get('address')||''),pin:String(data.get('pin')||''),items,total:cartTotal(),subtotal:cartTotal(),discount:0,gst:getSettingsConfig().gst||'10BZYPB5853J1Z3'};
   renderInvoice();saveInvoiceDraft(); return lastInvoice;
 }
 function renderInvoice(){
   if(!lastInvoice)return;
   const x=lastInvoice;
-  $('invoicePreview').innerHTML='<div class="invoice-paper" id="invoicePaper"><div class="invoice-head"><div><div class="invoice-brand">👑 Maharani Saree Collection</div><div class="invoice-sub">Derni Bazar, Saran, Bihar — 841222</div></div><div class="invoice-meta"><strong>RETAIL BILL</strong><span>Bill No. '+x.number+'</span><span>'+x.date.toLocaleString('en-IN')+'</span></div></div><div class="invoice-shop"><span>GST: '+x.gst+'</span><span>Mob: 9097900814</span></div><div class="invoice-customer"><strong>Customer Details</strong><div><span>Name: '+x.name+'</span><span>Mobile: '+x.mobile+'</span><span>PIN: '+x.pin+'</span></div><p>Address: '+x.address+'</p></div><table class="invoice-table"><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+x.items.map(i=>'<tr><td>'+i.name+'<small>'+i.category+'</small></td><td>'+i.qty+'</td><td>'+money(i.price)+'</td><td>'+money(i.total)+'</td></tr>').join('')+'</tbody><tfoot><tr><th colspan="3">Grand Total</th><th>'+money(x.total)+'</th></tr></tfoot></table><div class="invoice-note">धन्यवाद! कृपया सामान/उपलब्धता और अंतिम कीमत दुकान/WhatsApp पर कन्फर्म करें।</div><div class="invoice-footer">Maharani Saree Collection · आपकी पसंद, हमारी जिम्मेदारी!</div></div>';
+  $('invoicePreview').innerHTML='<div class="invoice-paper" id="invoicePaper"><div class="invoice-head"><div><div class="invoice-brand">👑 Maharani Saree Collection</div><div class="invoice-sub">Derni Bazar, Saran, Bihar — 841222</div></div><div class="invoice-meta"><strong>RETAIL BILL</strong><span>Bill No. '+x.number+'</span><span>'+x.date.toLocaleString('en-IN')+'</span></div></div><div class="invoice-shop"><span>GST: '+x.gst+'</span><span>Mob: 9097900814</span></div><div class="invoice-customer"><strong>Customer Details</strong><div><span>Name: '+x.name+'</span><span>Mobile: '+x.mobile+'</span><span>PIN: '+x.pin+'</span></div><p>Address: '+x.address+'</p></div><table class="invoice-table"><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+x.items.map(i=>'<tr><td>'+i.name+'<small>'+i.category+'</small></td><td>'+i.qty+'</td><td>'+money(i.price)+'</td><td>'+money(i.total)+'</td></tr>').join('')+'</tbody><tfoot><tr><th colspan="3">Subtotal</th><th>'+money(x.subtotal||x.total)+'</th></tr><tr><th colspan="3">Discount</th><th>- '+money(x.discount||0)+'</th></tr><tr><th colspan="3">Grand Total</th><th>'+money(x.total)+'</th></tr></tfoot></table><div class="invoice-note">धन्यवाद! कृपया सामान/उपलब्धता और अंतिम कीमत दुकान/WhatsApp पर कन्फर्म करें।</div><div class="invoice-footer">Maharani Saree Collection · आपकी पसंद, हमारी जिम्मेदारी!</div></div>';
 }
 function invoiceText(){
   if(!lastInvoice)return '';
@@ -197,12 +197,24 @@ function saveInvoiceDraft(){if(lastInvoice)localStorage.setItem('maharani-last-i
 function loadInvoiceDraft(){try{const x=JSON.parse(localStorage.getItem('maharani-last-invoice')||'null');if(x){x.date=new Date(x.date);lastInvoice=x;renderInvoice();}}catch(e){}}
 function modifyInvoice(){
   if(!lastInvoice)return;
-  const name=prompt('Customer name',lastInvoice.name); if(name===null)return;
-  const mobile=prompt('Mobile number',lastInvoice.mobile); if(mobile===null)return;
-  const address=prompt('Address',lastInvoice.address); if(address===null)return;
-  const pin=prompt('PIN code',lastInvoice.pin); if(pin===null)return;
-  lastInvoice.name=name.trim();lastInvoice.mobile=mobile.trim();lastInvoice.address=address.trim();lastInvoice.pin=pin.trim();
-  lastInvoice.total=lastInvoice.items.reduce((s,i)=>s+Number(i.total||0),0);
+  const x=lastInvoice;
+  const name=prompt('Customer name',x.name); if(name===null)return;
+  const mobile=prompt('Mobile number',x.mobile); if(mobile===null)return;
+  const address=prompt('Address',x.address); if(address===null)return;
+  const pin=prompt('PIN code',x.pin); if(pin===null)return;
+  x.name=name.trim();x.mobile=mobile.trim();x.address=address.trim();x.pin=pin.trim();
+  const updated=[];
+  for(const item of x.items){
+    const qty=prompt('Quantity for '+item.name,item.qty); if(qty===null)return;
+    const rate=prompt('Selling price for '+item.name,item.price); if(rate===null)return;
+    const q=Math.max(1,toNumber(qty)), p=Math.max(0,toNumber(rate));
+    updated.push({...item,qty:q,price:p,total:q*p});
+  }
+  x.items=updated;
+  const discount=prompt('Discount amount (₹)',x.discount||0); if(discount===null)return;
+  x.discount=Math.max(0,toNumber(discount));
+  x.subtotal=x.items.reduce((sum,i)=>sum+Number(i.total||0),0);
+  x.total=Math.max(0,x.subtotal-x.discount);
   saveInvoiceDraft();renderInvoice();toast('Bill modified ✓');
 }
 function deleteInvoice(){
