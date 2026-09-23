@@ -223,7 +223,7 @@ async function loadOrderHistory(){
     try{return JSON.parse(localStorage.getItem('maharani-orders')||'[]').map(o=>({...o,date:new Date(o.date)}));}catch(_){return [];}
   }
 }
-async async function renderAdminOrders(){
+async function renderAdminOrders(){
   const box=$('ordersPanel');if(!box)return;
   box.hidden=false;
   box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders</h3><p class="admin-muted">सभी devices से orders लोड हो रहे हैं…</p></div>';
