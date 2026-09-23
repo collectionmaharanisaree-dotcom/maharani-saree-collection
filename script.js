@@ -241,7 +241,7 @@ async function renderAdminOrders(){
   const list=await loadOrderHistory();
   const serverError=window.__MAHARANI_ORDERS_ERROR||'';
   if(serverError){
-    box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Orders database से connect नहीं हो पाया।</p><p class="admin-error">Database message: '+serverError+'</p><p class="admin-help">Supabase में <b>orders-schema.sql</b> एक बार Run होने के बाद यही panel सभी devices के orders दिखाएगा।</p><button type="button" class="button button-dark" id="ordersRefreshBtn">↻ Refresh Orders</button></div>';
+    box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Orders database से connect नहीं हो पाया।</p><p class="admin-error">Database message: '+serverError+'</p><button type="button" class="button button-dark" id="ordersRefreshBtn">↻ Refresh Orders</button></div>';
     const rb=$('ordersRefreshBtn');if(rb)rb.onclick=()=>renderAdminOrders();
     return;
   }
@@ -250,8 +250,28 @@ async function renderAdminOrders(){
     const rb=$('ordersRefreshBtn');if(rb)rb.onclick=()=>renderAdminOrders();
     return;
   }
-  box.innerHTML='<div class="admin-settings-card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Total online orders: <b>'+list.length+'</b> · सभी devices पर same list</p></div><button type="button" class="button button-outline" id="ordersRefreshBtn">↻ Refresh</button></div>'+list.map((o,n)=>'<div class="admin-row"><div><strong>'+o.number+'</strong><small>👤 '+(o.name||'Customer')+' · 📞 '+(o.mobile||'-')+' · 💰 '+money(o.total)+'</small><small>📦 '+o.items.map(i=>i.name+' × '+i.qty).join(', ')+'</small><small>📌 Status: '+(o.status||'Pending')+' · '+new Date(o.date).toLocaleString('en-IN')+'</small></div><div class="admin-row-actions"><button type="button" class="button button-outline" data-order-view="'+n+'">Open</button><button type="button" class="button button-outline" data-order-print="'+n+'">🖨️ Print</button><button type="button" class="button button-danger" data-order-delete="'+n+'">🗑️ Delete</button></div></div>').join('')+'</div>';
+  box.innerHTML='<div class="admin-settings-card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Total online orders: <b>'+list.length+'</b> · सभी devices पर same list</p></div><button type="button" class="button button-outline" id="ordersRefreshBtn">↻ Refresh</button></div>'+list.map((o,n)=>{
+    const confirmed=String(o.status||'Pending').toLowerCase()==='confirmed';
+    return '<div class="admin-row"><div><strong>'+o.number+'</strong><small>👤 '+(o.name||'Customer')+' · 📞 '+(o.mobile||'-')+' · 💰 '+money(o.total)+'</small><small>📦 '+o.items.map(i=>i.name+' × '+i.qty).join(', ')+'</small><small>📌 Status: <b>'+((o.status||'Pending'))+'</b> · '+new Date(o.date).toLocaleString('en-IN')+'</small></div><div class="admin-row-actions">'+(confirmed?'<button type="button" class="button button-outline" disabled>✅ Confirmed</button>':'<button type="button" class="button button-dark" data-order-confirm="'+n+'">✅ Confirm Order</button>')+'<button type="button" class="button button-outline" data-order-view="'+n+'">Open</button><button type="button" class="button button-outline" data-order-print="'+n+'">🖨️ Print</button><button type="button" class="button button-danger" data-order-delete="'+n+'">🗑️ Delete</button></div></div>';
+  }).join('')+'</div>';
   const refresh=$('ordersRefreshBtn');if(refresh)refresh.onclick=()=>renderAdminOrders();
+  box.querySelectorAll('[data-order-confirm]').forEach(btn=>btn.onclick=async()=>{
+    const o=list[Number(btn.dataset.orderConfirm)];if(!o)return;
+    btn.disabled=true;btn.textContent='Confirming…';
+    try{
+      const client=await getSupabaseClient();
+      const {error}=await client.from('Orders').update({status:'Confirmed'}).eq('id',o.id);
+      if(error)throw error;
+      o.status='Confirmed';lastInvoice=o;saveInvoiceDraft();saveOrderToHistory(o);
+      const textMsg='👑 Maharani Saree Collection\\n\\n✅ आपका Order Successful और Confirm हो गया है।\\n🧾 Order No: '+o.number+'\\n💰 कुल राशि: '+money(o.total)+'\\n\\n📞 किसी जानकारी के लिए: 9097900814\\nधन्यवाद! ❤️';
+      const phone=String(o.mobile||'').replace(/\\D/g,'');
+      if(phone)window.open('https://wa.me/'+(phone.length===10?'91'+phone:phone)+'?text='+encodeURIComponent(textMsg),'_blank','noopener');
+      toast('✅ Order Confirm हो गया · Customer WhatsApp message भेजें');
+      await renderAdminOrders();
+    }catch(e){
+      btn.disabled=false;btn.textContent='✅ Confirm Order';toast('Confirm failed: '+(e?.message||e));
+    }
+  });
   box.querySelectorAll('[data-order-view]').forEach(btn=>btn.onclick=()=>{lastInvoice=list[Number(btn.dataset.orderView)];renderInvoice();openInvoice();});
   box.querySelectorAll('[data-order-print]').forEach(btn=>btn.onclick=()=>{lastInvoice=list[Number(btn.dataset.orderPrint)];renderInvoice();printInvoice();});
   box.querySelectorAll('[data-order-delete]').forEach(btn=>btn.onclick=async()=>{const o=list[Number(btn.dataset.orderDelete)];if(!o||!confirm('इस order/bill को delete करें?'))return;const {error}=await getSupabaseClient().then(client=>client.from('Orders').delete().eq('id',o.id));if(error){toast('Delete failed: '+error.message);return;}renderAdminOrders();toast('Order deleted ✓');});
@@ -470,7 +490,7 @@ async function init(){
   initOfferNotification();
   await loadProducts();rebuildCategories();renderCategoryFilter();$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(SITE_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
-  $('orderForm').onsubmit=async e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);const saved=await saveOrderToServer(inv);if(!saved){toast('❌ Order database में save नहीं हुआ: '+(inv.serverError||'unknown error'));return;}lastInvoice=saved;saveOrderToHistory(saved);const message='👑 MAHARANI SAREE COLLECTION\\n\\n🛒 NEW ORDER\\n🧾 Order No: '+inv.number+'\\n\\n1️⃣ नाम: '+inv.name+'\\n2️⃣ मोबाइल: '+inv.mobile+'\\n3️⃣ पता: '+inv.address+'\\n4️⃣ PIN: '+inv.pin+'\\n\\n5️⃣ सामान: '+inv.items.map(i=>i.name+' ('+i.category+')').join(', ')+'\\n6️⃣ Qty: '+inv.items.reduce((s,i)=>s+Number(i.qty||0),0)+'\\n7️⃣ रेट: '+inv.items.map(i=>money(i.price)).join(', ')+'\\n8️⃣ कुल: '+money(inv.total);$('checkoutDialog').close();cart=[];saveCart();renderCart();toast('✅ Order database में save हो गया');window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');};
+  $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);const message='👑 MAHARANI SAREE COLLECTION\\n\\n🛒 NEW ORDER\\n🧾 Order No: '+inv.number+'\\n\\n1️⃣ नाम: '+inv.name+'\\n2️⃣ मोबाइल: '+inv.mobile+'\\n3️⃣ पता: '+inv.address+'\\n4️⃣ PIN: '+inv.pin+'\\n\\n5️⃣ सामान: '+inv.items.map(i=>i.name+' ('+i.category+')').join(', ')+'\\n6️⃣ Qty: '+inv.items.reduce((s,i)=>s+Number(i.qty||0),0)+'\\n7️⃣ रेट: '+inv.items.map(i=>money(i.price)).join(', ')+'\\n8️⃣ कुल: '+money(inv.total);$('checkoutDialog').close();cart=[];saveCart();renderCart();toast('Order WhatsApp पर भेज दिया गया ✓');window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');saveOrderToServer(inv).then(saved=>{if(saved){lastInvoice=saved;saveOrderToHistory(saved);}});};
   window.addEventListener('hashchange',maybeAdminHash);maybeAdminHash();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
 }
