@@ -187,6 +187,27 @@ function invoiceText(){
   const x=lastInvoice, mrpTotal=invoiceMrpTotal(x), discount=invoiceDiscount(x);
   return '👑 Maharani Saree Collection\\n\\n🧾 BILL / ORDER\\nOrder No: '+x.number+'\\nCustomer: '+x.name+'\\nMobile: '+x.mobile+'\\nAddress: '+x.address+'\\nPIN: '+x.pin+'\\n\\nItems:\\n'+x.items.map(i=>'• '+i.name+' × '+i.qty+' | MRP '+money(getInvoiceItemMrp(i))+' | Price '+money(i.price)+' | Amount '+money(i.total)).join('\\n')+'\\n\\nMRP Total: '+money(mrpTotal)+'\\nDiscount / Saving: '+money(discount)+'\\n💰 TOTAL PAYMENT: '+money(x.total)+'\\n\\nGST: '+x.gst+'\\nThank you for shopping with Maharani Saree Collection!';
 }
+function printInvoice(){
+  if(!lastInvoice)return;
+  const paper=$('invoicePaper')?.outerHTML||'';
+  const w=window.open('','_blank','width=800,height=900');
+  if(!w){toast('Popup allow karke Print Bill dobara dabaiye');return;}
+  w.document.write('<!doctype html><html><head><title>Maharani Bill '+lastInvoice.number+'</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;background:#eee;margin:0;padding:20px}.invoice-paper{max-width:760px;margin:auto;background:#fff;padding:28px;color:#211923}.invoice-head{display:flex;justify-content:space-between;border-bottom:2px solid #5d1738;padding-bottom:14px}.invoice-brand{font-size:24px;font-weight:800;color:#5d1738}.invoice-sub,.invoice-meta span,.invoice-customer,.invoice-note,.invoice-footer{font-size:12px;color:#555}.invoice-meta{text-align:right;display:grid;gap:4px}.invoice-meta strong{color:#5d1738}.invoice-shop{display:flex;justify-content:space-between;padding:10px 0;font-size:11px}.invoice-customer{border:1px solid #ddd;padding:12px;margin:10px 0}.invoice-customer div{display:flex;gap:25px;margin-top:8px}.invoice-customer p{margin:8px 0 0}.invoice-table{width:100%;border-collapse:collapse;font-size:12px}.invoice-table th,.invoice-table td{border-bottom:1px solid #ddd;padding:10px;text-align:left}.invoice-table th:nth-child(n+2),.invoice-table td:nth-child(n+2){text-align:right}.invoice-table small{display:block;color:#777}.invoice-note{margin-top:18px}.invoice-footer{text-align:center;margin-top:28px;border-top:1px solid #ddd;padding-top:12px}@media print{body{background:#fff;padding:0}.invoice-paper{max-width:none}}</style></head><body>'+paper+'<script>window.onload=()=>{setTimeout(()=>window.print(),100)}</script></body></html>');
+  w.document.close();
+}
+async function shareInvoiceImage(){
+  if(!lastInvoice)return;
+  const paper=$('invoicePaper');if(!paper)return;
+  if(!window.html2canvas){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';s.onload=()=>shareInvoiceImage();s.onerror=()=>toast('Bill photo tool load नहीं हुआ');document.head.appendChild(s);return;}
+  try{
+    toast('Bill photo तैयार हो रहा है…');
+    const canvas=await window.html2canvas(paper,{scale:2,backgroundColor:'#ffffff',useCORS:true});
+    const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));
+    const file=new File([blob],'Maharani-Bill-'+lastInvoice.number+'.png',{type:'image/png'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:'Maharani Saree Collection Bill',text:'Bill '+lastInvoice.number,files:[file]});}
+    else{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Bill photo download हो गई ✓');}
+  }catch(e){if(e?.name!=='AbortError')toast('Bill photo share नहीं हो पाया');}
+}
 async function saveOrderToServer(inv){
   try{
     const client=await getSupabaseClient();
