@@ -18,3 +18,19 @@
 
 /* Strong Dhamaka branding */
 .announcement{font-weight:900;font-size:12px;letter-spacing:.12em}.offer-ticker strong{font-size:13px;font-weight:900}.dhamaka h3{font-weight:900;text-transform:uppercase}.offer-deadline strong{font-weight:900}
+
+/* Customer bill / invoice */
+.invoice-dialog{border:0;padding:0;max-width:min(820px,calc(100% - 24px));width:100%;box-shadow:0 20px 60px #0003;background:#f3eeea}
+.invoice-dialog::backdrop{background:#21192399}
+.invoice-dialog .dialog-close{position:absolute;right:12px;top:8px;z-index:3}
+.invoice-paper{background:#fff;color:#211923;margin:0;padding:30px;max-width:100%;font-family:Arial,sans-serif}
+.invoice-head{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid var(--wine);padding-bottom:14px}
+.invoice-brand{font-size:22px;font-weight:800;color:var(--wine)}
+.invoice-sub,.invoice-meta span,.invoice-customer,.invoice-note,.invoice-footer{font-size:11px;color:#5f555a}
+.invoice-meta{text-align:right;display:grid;gap:4px}.invoice-meta strong{color:var(--wine)}
+.invoice-shop{display:flex;justify-content:space-between;padding:10px 0;font-size:11px}
+.invoice-customer{border:1px solid #ddd;padding:12px;margin:10px 0}.invoice-customer div{display:flex;gap:25px;margin-top:8px}.invoice-customer p{margin:8px 0 0}
+.invoice-table{width:100%;border-collapse:collapse;font-size:12px}.invoice-table th,.invoice-table td{border-bottom:1px solid #ddd;padding:10px;text-align:left}.invoice-table th:nth-child(n+2),.invoice-table td:nth-child(n+2){text-align:right}.invoice-table small{display:block;color:#777}
+.invoice-note{margin-top:18px}.invoice-footer{text-align:center;margin-top:28px;border-top:1px solid #ddd;padding-top:12px}
+.invoice-actions{display:flex;gap:10px;flex-wrap:wrap;padding:18px;background:#f7f2ed}.invoice-help{padding:0 18px 18px;margin:0}
+@media(max-width:600px){.invoice-paper{padding:18px}.invoice-head{display:block}.invoice-meta{text-align:left;margin-top:10px}.invoice-customer div{display:grid;gap:4px}.invoice-table{font-size:10px}.invoice-table th,.invoice-table td{padding:7px}.invoice-actions .button{flex:1;min-width:145px}}
