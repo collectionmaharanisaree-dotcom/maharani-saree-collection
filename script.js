@@ -249,7 +249,7 @@ async function loadOrderHistory(){
     try{return JSON.parse(localStorage.getItem('maharani-orders')||'[]').map(o=>({...o,date:new Date(o.date)}));}catch(_){return [];}
   }
 }
-async function renderAdminOrders(){
+async async function renderAdminOrders(){
   const box=$('ordersPanel');if(!box)return;
   box.hidden=false;
   box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">iPhone, Android और computer — सभी devices से orders लोड हो रहे हैं…</p></div>';
@@ -273,19 +273,23 @@ async function renderAdminOrders(){
   box.querySelectorAll('[data-order-confirm]').forEach(btn=>btn.onclick=async()=>{
     const o=list[Number(btn.dataset.orderConfirm)];if(!o)return;
     btn.disabled=true;btn.textContent='Confirming…';
+    const phone=String(o.mobile||'').replace(/\D/g,'');
+    const waPhone=phone.length===10?'91'+phone:phone;
+    const waWindow=waPhone?window.open('about:blank','_blank'):null;
     try{
       const client=await getSupabaseClient();
       const {error}=await client.from('Orders').update({status:'Confirmed'}).eq('id',o.id);
       if(error)throw error;
       o.status='Confirmed';lastInvoice=o;saveInvoiceDraft();saveOrderToHistory(o);
       const mrpTotal=invoiceMrpTotal(o),discount=invoiceDiscount(o);
-      const textMsg='👑 Maharani Saree Collection\\n\\n✅ आपका Order Successful और Confirm हो गया है।\\n🧾 BILL / ORDER: '+o.number+'\\n👤 Customer: '+(o.name||'Customer')+'\\n\\n'+o.items.map(i=>'• '+i.name+' × '+i.qty+' | MRP '+money(getInvoiceItemMrp(i))+' | Price '+money(i.price)+' | Amount '+money(i.total)).join('\\n')+'\\n\\nMRP Total: '+money(mrpTotal)+'\\nDiscount / Saving: '+money(discount)+'\\n💰 TOTAL PAYMENT: '+money(o.total)+'\\n\\n📞 किसी जानकारी के लिए: 9097900814\\nधन्यवाद! ❤️';
-      const phone=String(o.mobile||'').replace(/\\D/g,'');
-      if(phone)window.open('https://wa.me/'+(phone.length===10?'91'+phone:phone)+'?text='+encodeURIComponent(textMsg),'_blank','noopener');
-      toast('✅ Order Confirm हो गया · Bill details WhatsApp पर भेजें');
+      const textMsg='👑 Maharani Saree Collection\n\n✅ आपका Order Successful और Confirm हो गया है।\n🧾 BILL / ORDER: '+o.number+'\n👤 Customer: '+(o.name||'Customer')+'\n📞 Mobile: '+(o.mobile||'-')+'\n\n'+o.items.map(i=>'• '+i.name+' × '+i.qty+' | MRP '+money(getInvoiceItemMrp(i))+' | Price '+money(i.price)+' | Amount '+money(i.total)).join('\\n')+'\n\nMRP Total: '+money(mrpTotal)+'\nDiscount / Saving: '+money(discount)+'\n💰 TOTAL PAYMENT: '+money(o.total)+'\n\n📞 किसी जानकारी के लिए: 9097900814\nधन्यवाद! ❤️';
+      if(waWindow)waWindow.location.href='https://wa.me/'+waPhone+'?text='+encodeURIComponent(textMsg);
+      else toast('Customer mobile number नहीं मिला, इसलिए WhatsApp नहीं खुला।');
+      toast('✅ Order Confirm हो गया · Customer के नंबर पर Bill + Order Successful भेजा गया');
       await renderAdminOrders();
-    }catch(e){
-      btn.disabled=false;btn.textContent='✅ Confirm Order';toast('Confirm failed: '+(e?.message||e));
+    }catch(err){
+      if(waWindow)waWindow.close();
+      btn.disabled=false;btn.textContent='✅ Confirm Order';toast('Confirm failed: '+(err?.message||err));
     }
   });
   box.querySelectorAll('[data-order-view]').forEach(btn=>btn.onclick=()=>{lastInvoice=list[Number(btn.dataset.orderView)];renderInvoice();openInvoice();});
