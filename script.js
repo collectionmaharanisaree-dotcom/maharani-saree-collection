@@ -193,27 +193,46 @@ async function shareInvoiceImage(){
     else{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Bill photo download हो गई ✓');}
   }catch(e){if(e?.name!=='AbortError')toast('Bill photo share नहीं हो पाया');}
 }
+async function saveOrderToServer(inv){
+  try{
+    const client=await getSupabaseClient();
+    const payload={bill_no:inv.number,customer_name:inv.name||'',mobile:inv.mobile||'',address:inv.address||'',pin:inv.pin||'',items:inv.items||[],subtotal:Number(inv.subtotal||0),discount:Number(inv.discount||0),total:Number(inv.total||0),status:'Pending',gst:inv.gst||'10BZYPB5853J1Z3'};
+    const {data,error}=await client.from('Orders').upsert(payload,{onConflict:'bill_no'}).select().single();
+    if(error)throw error;
+    inv.id=data.id;inv.date=new Date(data.created_at||inv.date);saveInvoiceDraft();
+    return inv;
+  }catch(e){console.error('Order save failed:',e);return null;}
+}
 function saveOrderToHistory(inv){
   try{
-    const key='maharani-orders';
-    const list=JSON.parse(localStorage.getItem(key)||'[]');
+    const key='maharani-orders';const list=JSON.parse(localStorage.getItem(key)||'[]');
     const clean={...inv,date:inv.date instanceof Date?inv.date.toISOString():inv.date};
-    const next=[clean,...list.filter(o=>o.number!==clean.number)].slice(0,100);
-    localStorage.setItem(key,JSON.stringify(next));
+    localStorage.setItem(key,JSON.stringify([clean,...list.filter(o=>o.number!==clean.number)].slice(0,100)));
   }catch(e){}
 }
-function loadOrderHistory(){
-  try{return JSON.parse(localStorage.getItem('maharani-orders')||'[]').map(o=>({...o,date:new Date(o.date)});}catch(e){return [];}
+async function loadOrderHistory(){
+  try{
+    const client=await getSupabaseClient();
+    const {data,error}=await client.from('Orders').select('*').order('created_at',{ascending:false}).limit(100);
+    if(error)throw error;
+    const list=(data||[]).map(o=>({id:o.id,number:o.bill_no,name:o.customer_name,mobile:o.mobile,address:o.address,pin:o.pin,items:Array.isArray(o.items)?o.items:[],subtotal:Number(o.subtotal||0),discount:Number(o.discount||0),total:Number(o.total||0),gst:o.gst||'10BZYPB5853J1Z3',status:o.status||'Pending',date:new Date(o.created_at)}));
+    localStorage.setItem('maharani-orders',JSON.stringify(list.map(o=>({...o,date:o.date.toISOString()}))));
+    return list;
+  }catch(e){
+    console.error('Orders load failed:',e);
+    try{return JSON.parse(localStorage.getItem('maharani-orders')||'[]').map(o=>({...o,date:new Date(o.date)}));}catch(_){return [];}
+  }
 }
-function renderAdminOrders(){
-  const box=$('ordersPanel'); if(!box)return;
+async function renderAdminOrders(){
+  const box=$('ordersPanel');if(!box)return;
   box.hidden=false;
-  const list=loadOrderHistory();
-  if(!list.length){box.innerHTML='<div class="admin-settings-card"><h3>🧾 Orders / Bills</h3><p class="admin-muted">अभी कोई online order नहीं आया है। Customer के order के बाद यहाँ दिखेगा।</p></div>';return;}
-  box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders</h3><p class="admin-muted">Website से आए orders यहाँ दिखेंगे। किसी order को खोलकर bill Print / Modify / Delete कर सकते हैं।</p>'+list.map((o,n)=>'<div class="admin-row"><div><strong>'+o.number+'</strong><small>👤 '+(o.name||'Customer')+' · 📞 '+(o.mobile||'-')+' · 💰 '+money(o.total)+'</small><small>📦 '+o.items.map(i=>i.name+' × '+i.qty).join(', ')+'</small></div><div class="admin-row-actions"><button type="button" class="button button-outline" data-order-view="'+n+'">Open</button><button type="button" class="button button-outline" data-order-print="'+n+'">🖨️ Print</button><button type="button" class="button button-danger" data-order-delete="'+n+'">🗑️ Delete</button></div></div>').join('')+'</div>';
-  box.querySelectorAll('[data-order-view]').forEach(b=>b.onclick=()=>{lastInvoice=list[Number(b.dataset.orderView)];renderInvoice();openInvoice();});
-  box.querySelectorAll('[data-order-print]').forEach(b=>b.onclick=()=>{lastInvoice=list[Number(b.dataset.orderPrint)];renderInvoice();printInvoice();});
-  box.querySelectorAll('[data-order-delete]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.orderDelete);if(confirm('इस order/bill को delete करें?')){list.splice(i,1);localStorage.setItem('maharani-orders',JSON.stringify(list));renderAdminOrders();toast('Order deleted ✓');}});
+  box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders</h3><p class="admin-muted">सभी devices से orders लोड हो रहे हैं…</p></div>';
+  const list=await loadOrderHistory();
+  if(!list.length){box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders</h3><p class="admin-muted">अभी कोई online order नहीं आया है।</p></div>';return;}
+  box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders</h3><p class="admin-muted">Website से आए orders यहाँ दिखेंगे।</p>'+list.map((o,n)=>'<div class="admin-row"><div><strong>'+o.number+'</strong><small>👤 '+(o.name||'Customer')+' · 📞 '+(o.mobile||'-')+' · 💰 '+money(o.total)+'</small><small>📦 '+o.items.map(i=>i.name+' × '+i.qty).join(', ')+'</small><small>📌 Status: '+(o.status||'Pending')+'</small></div><div class="admin-row-actions"><button type="button" class="button button-outline" data-order-view="'+n+'">Open</button><button type="button" class="button button-outline" data-order-print="'+n+'">🖨️ Print</button><button type="button" class="button button-danger" data-order-delete="'+n+'">🗑️ Delete</button></div></div>').join('')+'</div>';
+  box.querySelectorAll('[data-order-view]').forEach(btn=>btn.onclick=()=>{lastInvoice=list[Number(btn.dataset.orderView)];renderInvoice();openInvoice();});
+  box.querySelectorAll('[data-order-print]').forEach(btn=>btn.onclick=()=>{lastInvoice=list[Number(btn.dataset.orderPrint)];renderInvoice();printInvoice();});
+  box.querySelectorAll('[data-order-delete]').forEach(btn=>btn.onclick=async()=>{const o=list[Number(btn.dataset.orderDelete)];if(!o||!confirm('इस order/bill को delete करें?'))return;const {error}=await getSupabaseClient().then(client=>client.from('Orders').delete().eq('id',o.id));if(error){toast('Delete failed: '+error.message);return;}renderAdminOrders();toast('Order deleted ✓');});
 }
 function saveInvoiceDraft(){if(lastInvoice)localStorage.setItem('maharani-last-invoice',JSON.stringify(lastInvoice));}
 function loadInvoiceDraft(){try{const x=JSON.parse(localStorage.getItem('maharani-last-invoice')||'null');if(x){x.date=new Date(x.date);lastInvoice=x;renderInvoice();}}catch(e){}}
@@ -237,11 +256,11 @@ function modifyInvoice(){
   x.discount=Math.max(0,toNumber(discount));
   x.subtotal=x.items.reduce((sum,i)=>sum+Number(i.total||0),0);
   x.total=Math.max(0,x.subtotal-x.discount);
-  saveInvoiceDraft();saveOrderToHistory(lastInvoice);renderInvoice();toast('Bill modified ✓');
+  saveInvoiceDraft();saveOrderToHistory(lastInvoice);if(x.id){getSupabaseClient().then(client=>client.from('Orders').update({customer_name:x.name,mobile:x.mobile,address:x.address,pin:x.pin,items:x.items,subtotal:x.subtotal,discount:x.discount,total:x.total}).eq('id',x.id));}else{saveOrderToServer(x);}renderInvoice();toast('Bill modified ✓');
 }
 function deleteInvoice(){
   if(!lastInvoice)return;
-  if(confirm('इस Bill को delete करें?')){lastInvoice=null;localStorage.removeItem('maharani-last-invoice');$('invoicePreview').innerHTML='';$('invoiceDialog').close();toast('Bill deleted ✓');}
+  if(confirm('इस Bill को delete करें?')){const id=lastInvoice.id;lastInvoice=null;localStorage.removeItem('maharani-last-invoice');$('invoicePreview').innerHTML='';$('invoiceDialog').close();if(id)getSupabaseClient().then(client=>client.from('Orders').delete().eq('id',id));toast('Bill deleted ✓');}
 }
 function openInvoice(){if(!lastInvoice)return;$('invoiceDialog').showModal();}
 
@@ -271,6 +290,7 @@ function injectAdmin(){
   document.body.appendChild(panel);
   setupAdminCategorySelect();
   $('siteSettings').hidden=true;
+  const ordersBtn=$('ordersBtn');if(ordersBtn)ordersBtn.onclick=()=>renderAdminOrders();
   const settingsBtn=$('siteSettingsBtn');
   if(settingsBtn) settingsBtn.onclick=()=>{$('siteSettings').hidden=!$('siteSettings').hidden;if(!$('siteSettings').hidden)injectSiteSettings();};
   $('ordersBtn').onclick=()=>renderAdminOrders();$('adminClose').onclick=closeAdmin;$('adminForgotBtn').onclick=adminForgotPassword;$('newProductBtn').onclick=()=>resetAdminForm();$('adminCancelBtn').onclick=()=>resetAdminForm();$('adminLoginBtn').onclick=adminLogin;$('adminLogoutBtn').onclick=adminLogout;$('productForm').onsubmit=saveAdminProduct;$('adminPhotos').onchange=previewAdminPhotos;
@@ -435,7 +455,7 @@ async function init(){
   initOfferNotification();
   await loadProducts();rebuildCategories();renderCategoryFilter();$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(SITE_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
-  $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);const message='👑 MAHARANI SAREE COLLECTION\\n📍 Derni Bazar, Saran, Bihar\\n📞 9097900814\\n\\n━━━━━━━━━━━━━━━━━━\\n🛒 NEW ONLINE ORDER\\n━━━━━━━━━━━━━━━━━━\\n\\n🧾 Order / Bill No: '+inv.number+'\\n\\n👤 CUSTOMER DETAILS\\n• नाम: '+inv.name+'\\n• मोबाइल: '+inv.mobile+'\\n• पता: '+inv.address+'\\n• PIN: '+inv.pin+'\\n\\n🛍️ ORDER DETAILS\\n'+inv.items.map(i=>'• '+i.name+'\\n  Category: '+i.category+'\\n  Quantity: '+i.qty+' × '+money(i.price)+' = '+money(i.total)).join('\\n\\n')+'\\n\\n━━━━━━━━━━━━━━━━━━\\n💰 TOTAL AMOUNT: '+money(inv.total)+'\\n━━━━━━━━━━━━━━━━━━\\n\\n📌 कृपया उपलब्धता, अंतिम कीमत और डिलीवरी की जानकारी ग्राहक से कन्फर्म करें।\\n\\n🙏 धन्यवाद\\nMAHARANI SAREE COLLECTION\\nआपकी पसंद, हमारी जिम्मेदारी! ❤️';window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');$('checkoutDialog').close();openInvoice();cart=[];saveCart();renderCart();};
+  $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);saveOrderToServer(inv).then(saved=>{if(saved){lastInvoice=saved;renderInvoice();saveOrderToHistory(saved);}});const message='👑 MAHARANI SAREE COLLECTION\\n📍 Derni Bazar, Saran, Bihar\\n📞 9097900814\\n\\n━━━━━━━━━━━━━━━━━━\\n🛒 NEW ONLINE ORDER\\n━━━━━━━━━━━━━━━━━━\\n\\n🧾 Order / Bill No: '+inv.number+'\\n\\n👤 CUSTOMER DETAILS\\n• नाम: '+inv.name+'\\n• मोबाइल: '+inv.mobile+'\\n• पता: '+inv.address+'\\n• PIN: '+inv.pin+'\\n\\n🛍️ ORDER DETAILS\\n'+inv.items.map(i=>'• '+i.name+'\\n  Category: '+i.category+'\\n  Quantity: '+i.qty+' × '+money(i.price)+' = '+money(i.total)).join('\\n\\n')+'\\n\\n━━━━━━━━━━━━━━━━━━\\n💰 TOTAL AMOUNT: '+money(inv.total)+'\\n━━━━━━━━━━━━━━━━━━\\n\\n📌 कृपया उपलब्धता, अंतिम कीमत और डिलीवरी की जानकारी ग्राहक से कन्फर्म करें।\\n\\n🙏 धन्यवाद\\nMAHARANI SAREE COLLECTION\\nआपकी पसंद, हमारी जिम्मेदारी! ❤️';window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');$('checkoutDialog').close();openInvoice();cart=[];saveCart();renderCart();};
   window.addEventListener('hashchange',maybeAdminHash);maybeAdminHash();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
 }
@@ -523,7 +543,7 @@ function loadSupabaseClient(){
 function injectAdmin(){
   if($('adminPanel'))return;
   const panel=document.createElement('section');panel.id='adminPanel';panel.className='admin-panel';panel.hidden=true;
-  panel.innerHTML='<div class="admin-inner"><div class="admin-head"><div><p class="eyebrow">MAHARANI ADMIN</p><h2>Product Manager</h2><p class="admin-muted">Add, edit or delete products and upload multiple photos.</p></div><button class="admin-close" id="adminClose">×</button></div><div id="adminLogin"><div class="admin-box"><h3>Admin login</h3><label>Email<input id="adminEmail" type="email" autocomplete="username" placeholder="Admin email"></label><label>Password<input id="adminPassword" type="password" autocomplete="current-password" placeholder="Password"></label><button class="button button-dark" id="adminLoginBtn">Login</button><button class="button button-outline" type="button" id="adminForgotBtn">Forgot password?</button><p class="admin-msg" id="adminLoginMsg"></p></div></div><div id="adminApp" hidden><div id="siteSettings" class="admin-settings" hidden></div><div class="admin-toolbar"><button class="button button-dark" id="newProductBtn">+ Add product</button><button class="button button-outline" type="button" id="siteSettingsBtn">⚙ Site / Offer Settings</button><button class="button button-outline" id="adminLogoutBtn">Logout</button></div><form class="admin-box" id="productForm"><input type="hidden" id="adminId"><div class="admin-two"><label>Product name<input id="adminName" required placeholder="Saree"></label><label>Category<select id="adminCategory"><option>Saree</option><option>Lehnga</option><option>Suit</option><option>Kurti</option><option>Palazo</option><option>Leggings</option><option>Straight Pant</option><option>Kids</option><option>Jeans</option><option>Shorts</option><option>T-Shirt</option><option>Undergarments</option><option>Other</option><option value="__NEW_CATEGORY__">＋ New category...</option></select></label></div><div class="admin-two"><label>Selling price<input id="adminPrice" type="number" min="0" required placeholder="888"></label><label>MRP<input id="adminMrp" type="number" min="0" placeholder="1299"></label></div><label>Description<textarea id="adminDescription" rows="3" placeholder="Product details"></textarea><label>Photos <input id="adminPhotos" type="file" accept="image/*" multiple></label><p class="admin-help">You can select several photos for one product. The first photo becomes the main photo.</p><div id="adminPreview" class="admin-preview"></div><div class="admin-actions"><button class="button button-dark" type="submit" id="adminSaveBtn">Save product</button><button class="button button-outline" type="button" id="adminCancelBtn">Cancel</button></div><p class="admin-msg" id="adminFormMsg"></p></form><div class="admin-list" id="adminList"></div></div></div>';
+  panel.innerHTML='<div class="admin-inner"><div class="admin-head"><div><p class="eyebrow">MAHARANI ADMIN</p><h2>Product Manager</h2><p class="admin-muted">Add, edit or delete products and upload multiple photos.</p></div><button class="admin-close" id="adminClose">×</button></div><div id="adminLogin"><div class="admin-box"><h3>Admin login</h3><label>Email<input id="adminEmail" type="email" autocomplete="username" placeholder="Admin email"></label><label>Password<input id="adminPassword" type="password" autocomplete="current-password" placeholder="Password"></label><button class="button button-dark" id="adminLoginBtn">Login</button><button class="button button-outline" type="button" id="adminForgotBtn">Forgot password?</button><p class="admin-msg" id="adminLoginMsg"></p></div></div><div id="adminApp" hidden><div id="siteSettings" class="admin-settings" hidden></div><div id="ordersPanel" class="admin-settings" hidden></div><div class="admin-toolbar"><button class="button button-dark" id="newProductBtn">+ Add product</button><button class="button button-outline" id="ordersBtn">🧾 Orders / Bills</button><button class="button button-outline" type="button" id="siteSettingsBtn">⚙ Site / Offer Settings</button><button class="button button-outline" id="adminLogoutBtn">Logout</button></div><form class="admin-box" id="productForm"><input type="hidden" id="adminId"><div class="admin-two"><label>Product name<input id="adminName" required placeholder="Saree"></label><label>Category<select id="adminCategory"><option>Saree</option><option>Lehnga</option><option>Suit</option><option>Kurti</option><option>Palazo</option><option>Leggings</option><option>Straight Pant</option><option>Kids</option><option>Jeans</option><option>Shorts</option><option>T-Shirt</option><option>Undergarments</option><option>Other</option><option value="__NEW_CATEGORY__">＋ New category...</option></select></label></div><div class="admin-two"><label>Selling price<input id="adminPrice" type="number" min="0" required placeholder="888"></label><label>MRP<input id="adminMrp" type="number" min="0" placeholder="1299"></label></div><label>Description<textarea id="adminDescription" rows="3" placeholder="Product details"></textarea><label>Photos <input id="adminPhotos" type="file" accept="image/*" multiple></label><p class="admin-help">You can select several photos for one product. The first photo becomes the main photo.</p><div id="adminPreview" class="admin-preview"></div><div class="admin-actions"><button class="button button-dark" type="submit" id="adminSaveBtn">Save product</button><button class="button button-outline" type="button" id="adminCancelBtn">Cancel</button></div><p class="admin-msg" id="adminFormMsg"></p></form><div class="admin-list" id="adminList"></div></div></div>';
   document.body.appendChild(panel);
   setupAdminCategorySelect();
   $('siteSettings').hidden=true;
