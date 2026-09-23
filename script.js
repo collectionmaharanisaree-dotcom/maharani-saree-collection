@@ -1,3 +1,6 @@
+window.addEventListener('error',e=>{const msg=e?.error?.stack||e?.message||'Unknown JavaScript error';const show=()=>{let box=document.getElementById('supabase-diagnostic-error');if(!box){box=document.createElement('pre');box.id='supabase-diagnostic-error';box.style.cssText='position:fixed;z-index:2147483647;top:0;left:0;right:0;margin:0;padding:16px;background:#8b0000;color:#fff;font:14px/1.45 monospace;white-space:pre-wrap;overflow:auto;max-height:50vh;box-sizing:border-box';document.body.prepend(box);}box.textContent='Website JavaScript error:\n\n'+msg;};if(document.body)show();else window.addEventListener('DOMContentLoaded',show,{once:true});});
+window.addEventListener('unhandledrejection',e=>{const msg=e?.reason?.stack||e?.reason?.message||String(e?.reason||'Unknown promise error');const show=()=>{let box=document.getElementById('supabase-diagnostic-error');if(!box){box=document.createElement('pre');box.id='supabase-diagnostic-error';box.style.cssText='position:fixed;z-index:2147483647;top:0;left:0;right:0;margin:0;padding:16px;background:#8b0000;color:#fff;font:14px/1.45 monospace;white-space:pre-wrap;overflow:auto;max-height:50vh;box-sizing:border-box';document.body.prepend(box);}box.textContent='Website promise error:\n\n'+msg;};if(document.body)show();else window.addEventListener('DOMContentLoaded',show,{once:true});});
+
 const SITE_URL = 'https://collectionmaharanisaree-dotcom.github.io/maharani-saree-collection/';
 const SUPABASE_URL = 'https://rqzaibfdwczpqfrswcvg.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_oPs57ONamrOxneH9jsxbvw__PzUetUG';
@@ -102,6 +105,9 @@ async function loadProducts() {
     products = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
     rebuildCategories();
     applySiteSettings();
+    renderCategoryFilter();
+    renderCategories();
+    renderProducts();
   } catch(error) {
     console.error('Customer product loading failed:',error);
     products = [];
@@ -545,13 +551,11 @@ async function init(){
   window.addEventListener('hashchange',maybeAdminHash);
   maybeAdminHash();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
-  const isRecovery=await maybePasswordRecovery();
-  if(isRecovery)return;
-
   renderCart();
+  renderCategoryFilter();
   renderCategories();
   renderProducts();
-  const CUSTOMER_URL=SITE_URL+'?v=20260923products6';
+  const CUSTOMER_URL=SITE_URL+'?v=20260923products8';
   $('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(CUSTOMER_URL);
   $('siteUrl').textContent=SITE_URL;
   $('searchInput').oninput=renderProducts;
@@ -608,11 +612,7 @@ ${inv.items.map(i=>'• '+i.name+' ('+i.category+') × '+i.qty+' | MRP '+money(g
     });
   };
 
-  loadProducts().then(()=>{
-    rebuildCategories();
-    renderCategoryFilter();
-    renderCategories();
-    renderProducts();
-  }).catch(error=>console.error('Background product load failed:',error));
+  loadProducts().catch(error=>console.error('Background product load failed:',error));
+  maybePasswordRecovery().catch(error=>console.error('Password recovery check failed:',error));
 }
 init()
