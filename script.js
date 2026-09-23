@@ -201,7 +201,12 @@ async function saveOrderToServer(inv){
     if(error)throw error;
     inv.id=data.id;inv.date=new Date(data.created_at||inv.date);saveInvoiceDraft();
     return inv;
-  }catch(e){console.error('Order save failed:',e);return null;}
+  }catch(e){
+    console.error('Order save failed:',e);
+    inv.serverError=String(e?.message||e);
+    saveOrderToHistory(inv);
+    return null;
+  }
 }
 function saveOrderToHistory(inv){
   try{
@@ -217,19 +222,32 @@ async function loadOrderHistory(){
     if(error)throw error;
     const list=(data||[]).map(o=>({id:o.id,number:o.bill_no,name:o.customer_name,mobile:o.mobile,address:o.address,pin:o.pin,items:Array.isArray(o.items)?o.items:[],subtotal:Number(o.subtotal||0),discount:Number(o.discount||0),total:Number(o.total||0),gst:o.gst||'10BZYPB5853J1Z3',status:o.status||'Pending',date:new Date(o.created_at)}));
     localStorage.setItem('maharani-orders',JSON.stringify(list.map(o=>({...o,date:o.date.toISOString()}))));
+    window.__MAHARANI_ORDERS_ERROR='';
     return list;
   }catch(e){
     console.error('Orders load failed:',e);
+    window.__MAHARANI_ORDERS_ERROR=String(e?.message||e);
     try{return JSON.parse(localStorage.getItem('maharani-orders')||'[]').map(o=>({...o,date:new Date(o.date)}));}catch(_){return [];}
   }
 }
 async function renderAdminOrders(){
   const box=$('ordersPanel');if(!box)return;
   box.hidden=false;
-  box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders</h3><p class="admin-muted">सभी devices से orders लोड हो रहे हैं…</p></div>';
+  box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">iPhone, Android और computer — सभी devices से orders लोड हो रहे हैं…</p></div>';
   const list=await loadOrderHistory();
-  if(!list.length){box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders</h3><p class="admin-muted">अभी कोई online order नहीं आया है।</p></div>';return;}
-  box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders</h3><p class="admin-muted">Website से आए orders यहाँ दिखेंगे।</p>'+list.map((o,n)=>'<div class="admin-row"><div><strong>'+o.number+'</strong><small>👤 '+(o.name||'Customer')+' · 📞 '+(o.mobile||'-')+' · 💰 '+money(o.total)+'</small><small>📦 '+o.items.map(i=>i.name+' × '+i.qty).join(', ')+'</small><small>📌 Status: '+(o.status||'Pending')+'</small></div><div class="admin-row-actions"><button type="button" class="button button-outline" data-order-view="'+n+'">Open</button><button type="button" class="button button-outline" data-order-print="'+n+'">🖨️ Print</button><button type="button" class="button button-danger" data-order-delete="'+n+'">🗑️ Delete</button></div></div>').join('')+'</div>';
+  const serverError=window.__MAHARANI_ORDERS_ERROR||'';
+  if(serverError){
+    box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Orders database से connect नहीं हो पाया।</p><p class="admin-error">Database message: '+serverError+'</p><p class="admin-help">Supabase में <b>orders-schema.sql</b> एक बार Run होने के बाद यही panel सभी devices के orders दिखाएगा।</p><button type="button" class="button button-dark" id="ordersRefreshBtn">↻ Refresh Orders</button></div>';
+    const rb=$('ordersRefreshBtn');if(rb)rb.onclick=()=>renderAdminOrders();
+    return;
+  }
+  if(!list.length){
+    box.innerHTML='<div class="admin-settings-card"><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">अभी कोई online order नहीं आया है।</p><p class="admin-help">Order आने के बाद यह list iPhone, Android और computer सभी पर इसी जगह दिखेगी।</p><button type="button" class="button button-dark" id="ordersRefreshBtn">↻ Refresh Orders</button></div>';
+    const rb=$('ordersRefreshBtn');if(rb)rb.onclick=()=>renderAdminOrders();
+    return;
+  }
+  box.innerHTML='<div class="admin-settings-card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><h3>🧾 Customer Orders / Bills</h3><p class="admin-muted">Total online orders: <b>'+list.length+'</b> · सभी devices पर same list</p></div><button type="button" class="button button-outline" id="ordersRefreshBtn">↻ Refresh</button></div>'+list.map((o,n)=>'<div class="admin-row"><div><strong>'+o.number+'</strong><small>👤 '+(o.name||'Customer')+' · 📞 '+(o.mobile||'-')+' · 💰 '+money(o.total)+'</small><small>📦 '+o.items.map(i=>i.name+' × '+i.qty).join(', ')+'</small><small>📌 Status: '+(o.status||'Pending')+' · '+new Date(o.date).toLocaleString('en-IN')+'</small></div><div class="admin-row-actions"><button type="button" class="button button-outline" data-order-view="'+n+'">Open</button><button type="button" class="button button-outline" data-order-print="'+n+'">🖨️ Print</button><button type="button" class="button button-danger" data-order-delete="'+n+'">🗑️ Delete</button></div></div>').join('')+'</div>';
+  const refresh=$('ordersRefreshBtn');if(refresh)refresh.onclick=()=>renderAdminOrders();
   box.querySelectorAll('[data-order-view]').forEach(btn=>btn.onclick=()=>{lastInvoice=list[Number(btn.dataset.orderView)];renderInvoice();openInvoice();});
   box.querySelectorAll('[data-order-print]').forEach(btn=>btn.onclick=()=>{lastInvoice=list[Number(btn.dataset.orderPrint)];renderInvoice();printInvoice();});
   box.querySelectorAll('[data-order-delete]').forEach(btn=>btn.onclick=async()=>{const o=list[Number(btn.dataset.orderDelete)];if(!o||!confirm('इस order/bill को delete करें?'))return;const {error}=await getSupabaseClient().then(client=>client.from('Orders').delete().eq('id',o.id));if(error){toast('Delete failed: '+error.message);return;}renderAdminOrders();toast('Order deleted ✓');});
@@ -448,7 +466,7 @@ async function init(){
   initOfferNotification();
   await loadProducts();rebuildCategories();renderCategoryFilter();$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(SITE_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
-  $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);saveOrderToServer(inv).then(saved=>{if(saved){lastInvoice=saved;renderInvoice();saveOrderToHistory(saved);}});const message='👑 MAHARANI SAREE COLLECTION\\n📍 Derni Bazar, Saran, Bihar\\n📞 9097900814\\n\\n━━━━━━━━━━━━━━━━━━\\n🛒 NEW ONLINE ORDER\\n━━━━━━━━━━━━━━━━━━\\n\\n🧾 Order / Bill No: '+inv.number+'\\n\\n👤 CUSTOMER DETAILS\\n• नाम: '+inv.name+'\\n• मोबाइल: '+inv.mobile+'\\n• पता: '+inv.address+'\\n• PIN: '+inv.pin+'\\n\\n🛍️ ORDER DETAILS\\n'+inv.items.map(i=>'• '+i.name+'\\n  Category: '+i.category+'\\n  Quantity: '+i.qty+' × '+money(i.price)+' = '+money(i.total)).join('\\n\\n')+'\\n\\n━━━━━━━━━━━━━━━━━━\\n💰 TOTAL AMOUNT: '+money(inv.total)+'\\n━━━━━━━━━━━━━━━━━━\\n\\n📌 कृपया उपलब्धता, अंतिम कीमत और डिलीवरी की जानकारी ग्राहक से कन्फर्म करें।\\n\\n🙏 धन्यवाद\\nMAHARANI SAREE COLLECTION\\nआपकी पसंद, हमारी जिम्मेदारी! ❤️';window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');$('checkoutDialog').close();openInvoice();cart=[];saveCart();renderCart();};
+  $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);saveOrderToServer(inv).then(saved=>{if(saved){lastInvoice=saved;renderInvoice();saveOrderToHistory(saved);}else{toast('Order local bill बना है, लेकिन online Orders database में save नहीं हुआ। Admin में database message देखें।');}});const message='👑 MAHARANI SAREE COLLECTION\\n📍 Derni Bazar, Saran, Bihar\\n📞 9097900814\\n\\n━━━━━━━━━━━━━━━━━━\\n🛒 NEW ONLINE ORDER\\n━━━━━━━━━━━━━━━━━━\\n\\n🧾 Order / Bill No: '+inv.number+'\\n\\n👤 CUSTOMER DETAILS\\n• नाम: '+inv.name+'\\n• मोबाइल: '+inv.mobile+'\\n• पता: '+inv.address+'\\n• PIN: '+inv.pin+'\\n\\n🛍️ ORDER DETAILS\\n'+inv.items.map(i=>'• '+i.name+'\\n  Category: '+i.category+'\\n  Quantity: '+i.qty+' × '+money(i.price)+' = '+money(i.total)).join('\\n\\n')+'\\n\\n━━━━━━━━━━━━━━━━━━\\n💰 TOTAL AMOUNT: '+money(inv.total)+'\\n━━━━━━━━━━━━━━━━━━\\n\\n📌 कृपया उपलब्धता, अंतिम कीमत और डिलीवरी की जानकारी ग्राहक से कन्फर्म करें।\\n\\n🙏 धन्यवाद\\nMAHARANI SAREE COLLECTION\\nआपकी पसंद, हमारी जिम्मेदारी! ❤️';window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');$('checkoutDialog').close();openInvoice();cart=[];saveCart();renderCart();};
   window.addEventListener('hashchange',maybeAdminHash);maybeAdminHash();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
 }
