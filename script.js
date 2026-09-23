@@ -67,29 +67,29 @@ function showSupabaseError(message) {
   document.body.prepend(box);
 }
 async function loadProducts() {
+  const requestUrl = SUPABASE_URL + '/functions/v1/bright-task';
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), 15000);
   try {
-    const url = SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc';
-    const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(), 10000);
-    const response = await fetch(url, {
+    const response = await fetch(requestUrl, {
       method:'GET',
       cache:'no-store',
-      signal:controller.signal,
-      headers:{apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY}
+      signal:controller.signal
     });
-    clearTimeout(timeout);
     const body = await response.text();
     if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
-    const rows = JSON.parse(body);
-    if(!Array.isArray(rows)) throw new Error('Invalid Products response');
-    siteSettings = rows.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
+    const data = JSON.parse(body);
+    if(!Array.isArray(data)) throw new Error('Invalid products response');
+    siteSettings = data.find(row => (row.Name ?? row.name) === '__SITE_SETTINGS__') || null;
     siteSettingsId = siteSettings?.id || null;
-    products = rows.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
+    products = data.filter(row => (row.Name ?? row.name) !== '__SITE_SETTINGS__').map(normalizeProduct);
     applySiteSettings();
   } catch(error) {
     console.error('Customer product loading failed:',error);
     products = [];
     showSupabaseError(String(error?.message || error));
+  } finally {
+    clearTimeout(timeout);
   }
 }
 function applyText(id,value){const el=$(id);if(el&&value!=null)el.textContent=value;}
