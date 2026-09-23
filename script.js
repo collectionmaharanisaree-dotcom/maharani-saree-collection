@@ -490,7 +490,20 @@ async function init(){
   initOfferNotification();
   await loadProducts();rebuildCategories();renderCategoryFilter();$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(SITE_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
-  $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);const message='👑 MAHARANI SAREE COLLECTION\n\n🛒 NEW ORDER\n🧾 Order No: '+inv.number+'\n\n1️⃣ नाम: '+inv.name+'\n2️⃣ मोबाइल: '+inv.mobile+'\n3️⃣ पता: '+inv.address+'\n4️⃣ PIN: '+inv.pin+'\n\n5️⃣ सामान: '+inv.items.map(i=>i.name+' ('+i.category+')').join(', ')+'\n6️⃣ Qty: '+inv.items.reduce((s,i)=>s+Number(i.qty||0),0)+'\n7️⃣ रेट: '+inv.items.map(i=>money(i.price)).join(', ')+'\n8️⃣ कुल: '+money(inv.total);$('checkoutDialog').close();cart=[];saveCart();renderCart();toast('Order WhatsApp पर भेज दिया गया ✓');window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');saveOrderToServer(inv).then(saved=>{if(saved){lastInvoice=saved;saveOrderToHistory(saved);}});};
+  $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);const message=`👑 MAHARANI SAREE COLLECTION
+
+🛒 NEW ORDER
+🧾 Order No: ${inv.number}
+
+1️⃣ नाम: ${inv.name}
+2️⃣ मोबाइल: ${inv.mobile}
+3️⃣ पता: ${inv.address}
+4️⃣ PIN: ${inv.pin}
+
+5️⃣ सामान: ${inv.items.map(i=>i.name+' ('+i.category+')').join(', ')}
+6️⃣ Qty: ${inv.items.reduce((s,i)=>s+Number(i.qty||0),0)}
+7️⃣ रेट: ${inv.items.map(i=>money(i.price)).join(', ')}
+8️⃣ कुल: ${money(inv.total)}`;$('checkoutDialog').close();cart=[];saveCart();renderCart();toast('Order WhatsApp पर भेज दिया गया ✓');window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');saveOrderToServer(inv).then(saved=>{if(saved){lastInvoice=saved;saveOrderToHistory(saved);}});};
   window.addEventListener('hashchange',maybeAdminHash);maybeAdminHash();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
 }
