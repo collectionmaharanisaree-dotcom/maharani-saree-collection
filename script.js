@@ -66,7 +66,7 @@ function showSupabaseError(message) {
   box.style.cssText='position:fixed;z-index:2147483647;top:0;left:0;right:0;margin:0;padding:16px;background:#8b0000;color:#fff;font:14px/1.45 monospace;white-space:pre-wrap;overflow:auto;max-height:50vh;box-sizing:border-box';
   document.body.prepend(box);
 }
-async async function loadProducts() {
+async function loadProducts() {
   const requestUrl = SUPABASE_URL + '/functions/v1/bright-task';
   try {
     const response = await fetch(requestUrl,{method:'GET',cache:'no-store'});
