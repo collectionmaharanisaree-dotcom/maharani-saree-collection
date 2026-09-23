@@ -155,6 +155,46 @@ function openDrawer(){$('cartDrawer').classList.add('open');$('drawerOverlay').c
 function closeDrawer(){$('cartDrawer').classList.remove('open');$('drawerOverlay').classList.remove('open');$('cartDrawer').setAttribute('aria-hidden','true');}
 function openCheckout(){if(!cart.length)return toast('Add a product before checkout');$('checkoutItems').textContent=cart.reduce((s,x)=>s+toNumber(x.qty),0);$('checkoutTotal').textContent=money(cartTotal());$('checkoutDialog').showModal();}
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2400);}
+let lastInvoice=null;
+function makeInvoiceNumber(){const d=new Date(),date=d.getFullYear().toString().slice(-2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');return 'MSC-'+date+'-'+String(Date.now()).slice(-5);}
+function createInvoice(data){
+  const items=cart.map(x=>{const p=findProduct(x.id);return p?{name:p.name,category:p.category,qty:toNumber(x.qty),price:p.price,total:p.price*toNumber(x.qty),image:p.image}:null;}).filter(Boolean);
+  lastInvoice={number:makeInvoiceNumber(),date:new Date(),name:String(data.get('name')||''),mobile:String(data.get('mobile')||''),address:String(data.get('address')||''),pin:String(data.get('pin')||''),items,total:cartTotal(),gst:getSettingsConfig().gst||'10BZYPB5853J1Z3'};
+  renderInvoice(); return lastInvoice;
+}
+function renderInvoice(){
+  if(!lastInvoice)return;
+  const x=lastInvoice;
+  $('invoicePreview').innerHTML='<div class="invoice-paper" id="invoicePaper"><div class="invoice-head"><div><div class="invoice-brand">👑 Maharani Saree Collection</div><div class="invoice-sub">Derni Bazar, Saran, Bihar — 841222</div></div><div class="invoice-meta"><strong>RETAIL BILL</strong><span>Bill No. '+x.number+'</span><span>'+x.date.toLocaleString('en-IN')+'</span></div></div><div class="invoice-shop"><span>GST: '+x.gst+'</span><span>Mob: 9097900814</span></div><div class="invoice-customer"><strong>Customer Details</strong><div><span>Name: '+x.name+'</span><span>Mobile: '+x.mobile+'</span><span>PIN: '+x.pin+'</span></div><p>Address: '+x.address+'</p></div><table class="invoice-table"><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+x.items.map(i=>'<tr><td>'+i.name+'<small>'+i.category+'</small></td><td>'+i.qty+'</td><td>'+money(i.price)+'</td><td>'+money(i.total)+'</td></tr>').join('')+'</tbody><tfoot><tr><th colspan="3">Grand Total</th><th>'+money(x.total)+'</th></tr></tfoot></table><div class="invoice-note">धन्यवाद! कृपया सामान/उपलब्धता और अंतिम कीमत दुकान/WhatsApp पर कन्फर्म करें।</div><div class="invoice-footer">Maharani Saree Collection · आपकी पसंद, हमारी जिम्मेदारी!</div></div>';
+}
+function invoiceText(){
+  if(!lastInvoice)return '';
+  const x=lastInvoice;
+  return '👑 Maharani Saree Collection\\n\\n🧾 Bill No: '+x.number+'\\nCustomer: '+x.name+'\\nMobile: '+x.mobile+'\\nAddress: '+x.address+'\\nPIN: '+x.pin+'\\n\\nItems:\\n'+x.items.map(i=>'• '+i.name+' × '+i.qty+' = '+money(i.total)).join('\\n')+'\\n\\n💰 Grand Total: '+money(x.total)+'\\n\\nGST: '+x.gst+'\\nThank you for shopping with Maharani Saree Collection!';
+}
+function printInvoice(){
+  if(!lastInvoice)return;
+  const paper=$('invoicePaper')?.outerHTML||'';
+  const w=window.open('','_blank','width=800,height=900');
+  if(!w){toast('Popup allow karke Print Bill dobara dabaiye');return;}
+  w.document.write('<!doctype html><html><head><title>Maharani Bill '+lastInvoice.number+'</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;background:#eee;margin:0;padding:20px}.invoice-paper{max-width:760px;margin:auto;background:#fff;padding:28px;color:#211923}.invoice-head{display:flex;justify-content:space-between;border-bottom:2px solid #5d1738;padding-bottom:14px}.invoice-brand{font-size:24px;font-weight:800;color:#5d1738}.invoice-sub,.invoice-meta span,.invoice-customer,.invoice-note,.invoice-footer{font-size:12px;color:#555}.invoice-meta{text-align:right;display:grid;gap:4px}.invoice-meta strong{color:#5d1738}.invoice-shop{display:flex;justify-content:space-between;padding:10px 0;font-size:11px}.invoice-customer{border:1px solid #ddd;padding:12px;margin:10px 0}.invoice-customer div{display:flex;gap:25px;margin-top:8px}.invoice-customer p{margin:8px 0 0}.invoice-table{width:100%;border-collapse:collapse;font-size:12px}.invoice-table th,.invoice-table td{border-bottom:1px solid #ddd;padding:10px;text-align:left}.invoice-table th:nth-child(n+2),.invoice-table td:nth-child(n+2){text-align:right}.invoice-table small{display:block;color:#777}.invoice-note{margin-top:18px}.invoice-footer{text-align:center;margin-top:28px;border-top:1px solid #ddd;padding-top:12px}@media print{body{background:#fff;padding:0}.invoice-paper{max-width:none}}</style></head><body>'+paper+'<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),500)}</script></body></html>');
+  w.document.close();
+}
+async function shareInvoiceImage(){
+  if(!lastInvoice)return;
+  const paper=$('invoicePaper');if(!paper)return;
+  if(!window.html2canvas){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';s.onload=()=>shareInvoiceImage();s.onerror=()=>toast('Bill photo tool load नहीं हुआ');document.head.appendChild(s);return;}
+  try{
+    toast('Bill photo तैयार हो रहा है…');
+    const canvas=await window.html2canvas(paper,{scale:2,backgroundColor:'#ffffff',useCORS:true});
+    const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));
+    const file=new File([blob],'Maharani-Bill-'+lastInvoice.number+'.png',{type:'image/png'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:'Maharani Saree Collection Bill',text:'Bill '+lastInvoice.number,files:[file]});}
+    else{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Bill photo download हो गई ✓');}
+  }catch(e){if(e?.name!=='AbortError')toast('Bill photo share नहीं हो पाया');}
+}
+function openInvoice(){if(!lastInvoice)return;$('invoiceDialog').showModal();}
+
 
 function loadSupabaseClient(){
   return new Promise((resolve,reject)=>{
@@ -337,8 +377,8 @@ async function init(){
   if(isRecovery)return;
   initOfferNotification();
   await loadProducts();rebuildCategories();renderCategoryFilter();$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(SITE_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
-  $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();
-  $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const lines=cart.map(x=>{const p=findProduct(x.id);return p?'• '+p.name+' ('+p.category+') × '+toNumber(x.qty)+' = '+money(p.price*toNumber(x.qty)):''}).filter(Boolean).join('\\n');const message='Namaste Maharani Saree Collection!\\n\\nNew order request\\n\\nCustomer: '+data.get('name')+'\\nMobile: '+data.get('mobile')+'\\nAddress: '+data.get('address')+'\\nPIN code: '+data.get('pin')+'\\n\\nSelected products:\\n'+lines+'\\n\\nTotal amount: '+money(cartTotal())+'\\n\\nPlease confirm availability, final price and delivery details.';window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');};
+  $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
+  $('orderForm').onsubmit=e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);const message='Namaste Maharani Saree Collection!\\n\\n🛒 New order request\\n🧾 Bill No: '+inv.number+'\\n\\nCustomer: '+inv.name+'\\nMobile: '+inv.mobile+'\\nAddress: '+inv.address+'\\nPIN code: '+inv.pin+'\\n\\nSelected products:\\n'+inv.items.map(i=>'• '+i.name+' ('+i.category+') × '+i.qty+' = '+money(i.total)).join('\\n')+'\\n\\n💰 Total amount: '+money(inv.total)+'\\n\\nPlease confirm availability, final price and delivery details.';window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');$('checkoutDialog').close();openInvoice();cart=[];saveCart();renderCart();};
   window.addEventListener('hashchange',maybeAdminHash);maybeAdminHash();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
 }
