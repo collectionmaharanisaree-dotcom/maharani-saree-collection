@@ -69,11 +69,15 @@ function showSupabaseError(message) {
 async function loadProducts() {
   try {
     const url = SUPABASE_URL + '/rest/v1/Products?select=*&order=id.desc';
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 10000);
     const response = await fetch(url, {
       method:'GET',
       cache:'no-store',
+      signal:controller.signal,
       headers:{apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY}
     });
+    clearTimeout(timeout);
     const body = await response.text();
     if(!response.ok) throw new Error(response.status+' '+response.statusText+'\\n'+body);
     const rows = JSON.parse(body);
@@ -518,10 +522,33 @@ document.addEventListener('DOMContentLoaded',async()=>{
   document.querySelectorAll('a[href="#admin"]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();openAdmin();}));
 });
 async function init(){
+  initOfferNotification();
+  window.addEventListener('hashchange',maybeAdminHash);
+  maybeAdminHash();
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
-  initOfferNotification();
-  await loadProducts();rebuildCategories();renderCategoryFilter();const CUSTOMER_URL=SITE_URL+'?v=20260923products3';$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(CUSTOMER_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
+  renderCart();
+  renderCategories();
+  renderProducts();
+  const CUSTOMER_URL=SITE_URL+'?v=20260923products6';
+  $('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(CUSTOMER_URL);
+  $('siteUrl').textContent=SITE_URL;
+  $('searchInput').oninput=renderProducts;
+  $('categoryFilter').onchange=renderProducts;
+  $('cartOpen').onclick=openDrawer;
+  $('cartClose').onclick=closeDrawer;
+  $('drawerOverlay').onclick=closeDrawer;
+  $('checkoutOpen').onclick=openCheckout;
+  $('dialogClose').onclick=()=>$('productDialog').close();
+  $('checkoutClose').onclick=()=>$('checkoutDialog').close();
+  $('invoiceClose').onclick=()=>$('invoiceDialog').close();
+  $('invoicePrint').onclick=printInvoice;
+  $('invoiceShare').onclick=shareInvoiceImage;
+  $('invoiceModify').onclick=modifyInvoice;
+  $('invoiceDelete').onclick=deleteInvoice;
+  $('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
+  $('orderForm').onsubmit=e=>{
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
   $('orderForm').onsubmit=e=>{
   e.preventDefault();
@@ -564,7 +591,14 @@ ${inv.items.map(i=>'• '+i.name+' ('+i.category+') × '+i.qty+' | MRP '+money(g
     }
   });
 };
-  window.addEventListener('hashchange',maybeAdminHash);maybeAdminHash();
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
+  };
+  loadProducts().then(()=>{
+    rebuildCategories();
+    renderCategoryFilter();
+    renderCategories();
+    renderProducts();
+  }).catch(error=>{
+    console.error('Background product load failed:',error);
+  });
 }
 init()
