@@ -308,7 +308,7 @@ function loadSupabaseClient(){
 function injectAdmin(){
   if($('adminPanel'))return;
   const panel=document.createElement('section');panel.id='adminPanel';panel.className='admin-panel';panel.hidden=true;
-  panel.innerHTML='<div class="admin-inner"><div class="admin-head"><div><p class="eyebrow">MAHARANI ADMIN</p><h2>Product Manager</h2><p class="admin-muted">Add, edit or delete products and upload multiple photos.</p></div><button class="admin-close" id="adminClose">×</button></div><div id="adminLogin"><div class="admin-box"><h3>Admin login</h3><label>Email<input id="adminEmail" type="email" autocomplete="username" placeholder="Admin email"></label><label>Password<input id="adminPassword" type="password" autocomplete="current-password" placeholder="Password"></label><button class="button button-dark" id="adminLoginBtn">Login</button><button class="button button-outline" type="button" id="adminForgotBtn">Forgot password?</button><p class="admin-msg" id="adminLoginMsg"></p></div></div><div id="adminApp" hidden><div id="siteSettings" class="admin-settings" hidden></div><div id="ordersPanel" class="admin-settings" hidden></div><div class="admin-toolbar"><button class="button button-dark" id="newProductBtn">+ Add product</button><button class="button button-outline" id="ordersBtn">🧾 Orders / Bills</button><button class="button button-outline" type="button" id="siteSettingsBtn">⚙ Site / Offer Settings</button><button class="button button-outline" id="adminLogoutBtn">Logout</button></div><form class="admin-box" id="productForm"><input type="hidden" id="adminId"><div class="admin-two"><label>Product name<input id="adminName" required placeholder="Saree"></label><label>Category<select id="adminCategory"><option>Saree</option><option>Lehnga</option><option>Suit</option><option>Kurti</option><option>Palazo</option><option>Leggings</option><option>Straight Pant</option><option>Kids</option><option>Jeans</option><option>Shorts</option><option>T-Shirt</option><option>Undergarments</option><option>Other</option><option value="__NEW_CATEGORY__">＋ New category...</option></select></label></div><div class="admin-two"><label>Selling price<input id="adminPrice" type="number" min="0" required placeholder="888"></label><label>MRP<input id="adminMrp" type="number" min="0" placeholder="1299"></label></div><label>Description<textarea id="adminDescription" rows="3" placeholder="Product details"></textarea><label>Photos <input id="adminPhotos" type="file" accept="image/*" multiple></label><p class="admin-help">You can select several photos for one product. The first photo becomes the main photo.</p><div id="adminPreview" class="admin-preview"></div><div class="admin-actions"><button class="button button-dark" type="submit" id="adminSaveBtn">Save product</button><button class="button button-outline" type="button" id="adminCancelBtn">Cancel</button></div><p class="admin-msg" id="adminFormMsg"></p></form><div class="admin-list" id="adminList"></div></div></div>';
+  panel.innerHTML='<div class="admin-inner"><div class="admin-head"><div><p class="eyebrow">MAHARANI ADMIN</p><h2>Product Manager</h2><p class="admin-muted">Add, edit or delete products and upload multiple photos.</p></div><button class="admin-close" id="adminClose">×</button></div><div id="adminLogin"><div class="admin-box"><h3>Admin login</h3><label>Email<input id="adminEmail" type="email" autocomplete="username" placeholder="Admin email"></label><label>Password<input id="adminPassword" type="password" autocomplete="current-password" placeholder="Password"></label><button class="button button-dark" id="adminLoginBtn">Login</button><button class="button button-outline" type="button" id="adminForgotBtn">Forgot password?</button><p class="admin-msg" id="adminLoginMsg"></p></div></div><div id="adminApp" hidden><div id="siteSettings" class="admin-settings" hidden></div><div id="ordersPanel" class="admin-settings" hidden></div><div class="admin-toolbar"><button class="button button-dark" id="newProductBtn">+ Add product</button><button class="button button-outline" id="ordersBtn">🧾 Orders / Bills</button><button class="button button-outline" type="button" id="siteSettingsBtn">⚙ Site / Offer Settings</button><button class="button button-outline" id="adminLogoutBtn">Logout</button></div><form class="admin-box" id="productForm"><input type="hidden" id="adminId"><div class="admin-two"><label>Product name<input id="adminName" required placeholder="Saree"></label><label>Category<select id="adminCategory"><option>Saree</option><option>Lehnga</option><option>Suit</option><option>Kurti</option><option>Palazo</option><option>Leggings</option><option>Straight Pant</option><option>Kids</option><option>Jeans</option><option>Shorts</option><option>T-Shirt</option><option>Undergarments</option><option>Other</option><option value="__NEW_CATEGORY__">＋ New category...</option></select></label></div><div class="admin-two"><label>MRP<input id="adminMrp" type="number" min="0" placeholder="1299"></label><label>Discount (%)<input id="adminDiscount" type="number" min="0" max="100" step="1" placeholder="20"></label></div><div class="admin-two"><label>आपका Selling Price<input id="adminPrice" type="number" min="0" required readonly placeholder="1039"></label><label>Size / उपलब्ध Size<input id="adminSize" type="text" placeholder="M, L, XL, XXL"></label></div><label>Description<textarea id="adminDescription" rows="3" placeholder="Product details"></textarea><label>Photos <input id="adminPhotos" type="file" accept="image/*" multiple></label><p class="admin-help">You can select several photos for one product. The first photo becomes the main photo.</p><div id="adminPreview" class="admin-preview"></div><div class="admin-actions"><button class="button button-dark" type="submit" id="adminSaveBtn">Save product</button><button class="button button-outline" type="button" id="adminCancelBtn">Cancel</button></div><p class="admin-msg" id="adminFormMsg"></p></form><div class="admin-list" id="adminList"></div></div></div>';
   document.body.appendChild(panel);
   setupAdminCategorySelect();
   $('siteSettings').hidden=true;
@@ -316,6 +316,8 @@ function injectAdmin(){
   const settingsBtn=$('siteSettingsBtn');
   if(settingsBtn) settingsBtn.onclick=()=>{$('siteSettings').hidden=!$('siteSettings').hidden;if(!$('siteSettings').hidden)injectSiteSettings();};
   $('ordersBtn').onclick=()=>renderAdminOrders();$('adminClose').onclick=closeAdmin;$('adminForgotBtn').onclick=adminForgotPassword;$('newProductBtn').onclick=()=>resetAdminForm();$('adminCancelBtn').onclick=()=>resetAdminForm();$('adminLoginBtn').onclick=adminLogin;$('adminLogoutBtn').onclick=adminLogout;$('productForm').onsubmit=saveAdminProduct;$('adminPhotos').onchange=previewAdminPhotos;
+  const recalcPrice=()=>{const mrp=toNumber($('adminMrp').value),discount=toNumber($('adminDiscount').value);$('adminPrice').value=mrp>0?Math.round(mrp*(1-Math.min(100,Math.max(0,discount))/100)):'';};
+  $('adminMrp').oninput=recalcPrice;$('adminDiscount').oninput=recalcPrice;
 }
 function openAdmin(){injectAdmin();$('adminPanel').hidden=false;document.body.classList.add('admin-open');loadSupabaseClient().then(refreshAdminSession).catch(e=>{$('adminLoginMsg').textContent='Could not load admin login: '+e.message;});}
 function closeAdmin(){if($('adminPanel'))$('adminPanel').hidden=true;document.body.classList.remove('admin-open');history.replaceState(null,'',SITE_URL);}
@@ -390,7 +392,7 @@ function setupAdminCategorySelect(){
   };
 }
 function resetAdminForm(){
-  $('productForm').reset();setupAdminCategorySelect();$('adminId').value='';$('adminPreview').innerHTML='';$('adminFormMsg').textContent='';$('adminSaveBtn').textContent='Save product';
+  $('productForm').reset();setupAdminCategorySelect();$('adminId').value='';$('adminPreview').innerHTML='';$('adminFormMsg').textContent='';$('adminSaveBtn').textContent='Save product';$('adminPrice').value='';$('adminDiscount').value='';$('adminSize').value='';
 }
 function previewAdminPhotos(){
   const box=$('adminPreview');box.innerHTML='';
@@ -411,7 +413,7 @@ async function uploadAdminPhotos(files){
 async function saveAdminProduct(e){
   e.preventDefault();const msg=$('adminFormMsg'),save=$('adminSaveBtn');save.disabled=true;msg.textContent='Saving…';
   try{
-    const id=$('adminId').value,name=$('adminName').value.trim(),category=$('adminCategory').value,price=toNumber($('adminPrice').value),mrp=toNumber($('adminMrp').value),description=$('adminDescription').value.trim(),files=[...$('adminPhotos').files];
+    const id=$('adminId').value,name=$('adminName').value.trim(),category=$('adminCategory').value,price=toNumber($('adminPrice').value),mrp=toNumber($('adminMrp').value),discount=toNumber($('adminDiscount').value),size=$('adminSize').value.trim(),baseDescription=$('adminDescription').value.trim(),description=(size?'[SIZE: '+size+']\\n':'')+baseDescription,files=[...$('adminPhotos').files];
     let existing=null;
     if(id) existing=adminProducts.find(p=>String(p.id)===String(id));
     let image=existing?.image||'', images=existing?.images||[];
@@ -446,9 +448,12 @@ function editAdminProduct(id){
   $('adminId').value=p.id;
   $('adminName').value=p.name;
   select.value=p.category;
-  $('adminPrice').value=p.price;
   $('adminMrp').value=p.mrp;
-  $('adminDescription').value=p.description||'';
+  $('adminDiscount').value=p.mrp>0?Math.max(0,Math.round((1-(p.price/p.mrp))*100)):0;
+  $('adminPrice').value=p.price;
+  const sizeMatch=String(p.description||'').match(/^\\[SIZE:\\s*(.*?)\\]\\n?/i);
+  $('adminSize').value=sizeMatch?sizeMatch[1]:'';
+  $('adminDescription').value=String(p.description||'').replace(/^\\[SIZE:\\s*.*?\\]\\n?/i,'');
   $('adminPreview').innerHTML=(p.images||[]).map(src=>'<img src="'+src+'" alt="">').join('');
   $('adminFormMsg').textContent='Existing photos kept. Select new photos to add more.';
   $('adminSaveBtn').textContent='Update product';
