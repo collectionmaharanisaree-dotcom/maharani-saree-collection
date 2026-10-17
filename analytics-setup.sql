@@ -11,6 +11,7 @@ create table if not exists public.site_visits (
 alter table public.site_visits enable row level security;
 
 grant insert on table public.site_visits to anon, authenticated;
+grant usage, select on sequence public.site_visits_id_seq to anon, authenticated;
 
 drop policy if exists "Allow anonymous visitor event inserts" on public.site_visits;
 create policy "Allow anonymous visitor event inserts"
