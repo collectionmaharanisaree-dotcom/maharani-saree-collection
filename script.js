@@ -481,3 +481,38 @@ async function init(){
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
 }
 init()
+
+/* Maharani site visitor analytics */
+(() => {
+  const supabaseUrl = 'https://rqzaibfdwczpqfrswcvg.supabase.co';
+  const publishableKey = 'sb_publishable_oPs57ONamrOxneH9jsxbvw__PzUetUG';
+  try {
+    const storageKey = 'maharani_visitor_id';
+    let visitorId = localStorage.getItem(storageKey);
+    if (!visitorId) {
+      visitorId = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'v-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+      localStorage.setItem(storageKey, visitorId);
+    }
+    const params = new URLSearchParams(window.location.search);
+    const source = (params.get('utm_source') || params.get('source') || 'direct').slice(0, 80);
+    fetch(supabaseUrl + '/rest/v1/site_visits', {
+      method: 'POST',
+      headers: {
+        'apikey': publishableKey,
+        'Authorization': 'Bearer ' + publishableKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        visitor_id: visitorId,
+        source: source,
+        page: window.location.pathname
+      }),
+      keepalive: true
+    }).catch(() => {});
+  } catch (_) {
+    // Analytics must never interfere with shopping or checkout.
+  }
+})();
