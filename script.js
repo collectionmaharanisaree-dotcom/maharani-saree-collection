@@ -326,19 +326,22 @@ async function renderAdminVisitorStats(){
   const box=$('visitorStatsPanel');
   if(!box)return;
   box.hidden=false;
-  box.innerHTML='<div class="admin-box"><h3>👁 Website Visitors</h3><p class="admin-muted">Visitor count recorded by the website. Loading…</p></div>';
+  box.innerHTML='<div class="admin-box"><h3>👁 Website Visitors & QR Scans</h3><p class="admin-muted">Loading…</p></div>';
   try{
     const client=await getSupabaseClient();
-    const result=await client.from('site_visits').select('visitor_id,source,page,created_at',{count:'exact'}).order('created_at',{ascending:false}).limit(1000);
+    const result=await client.from('site_visits')
+      .select('visitor_id,source,page_path,visited_at',{count:'exact'})
+      .order('visited_at',{ascending:false}).limit(1000);
     if(result.error)throw result.error;
     const rows=result.data||[];
     const unique=new Set(rows.map(x=>x.visitor_id).filter(Boolean)).size;
     const total=Number(result.count||rows.length);
-    const recent=rows.slice(0,12).map(x=>'<tr><td>'+new Date(x.created_at).toLocaleString('en-IN')+'</td><td>'+String(x.source||'direct').replace(/[<>]/g,'')+'</td><td>'+String(x.page||'/').replace(/[<>]/g,'')+'</td></tr>').join('');
-    box.innerHTML='<div class="admin-box"><div class="admin-head"><div><p class="eyebrow">MAHARANI ANALYTICS</p><h3>Website Visitors</h3><p class="admin-muted">Website se record hue visits</p></div><button class="button button-outline" type="button" id="refreshVisitorStats">↻ Refresh</button></div><div class="admin-two"><div class="admin-box"><small>Total page visits</small><h2>'+total.toLocaleString('en-IN')+'</h2></div><div class="admin-box"><small>Unique visitors</small><h2>'+unique.toLocaleString('en-IN')+'</h2><p class="admin-help">Latest 1,000 records ke andar</p></div></div><p class="admin-help">Google Analytics ka detailed report dekhne ke liye <a href="https://analytics.google.com/analytics/web/" target="_blank" rel="noopener">Google Analytics Realtime</a> kholen. Counts tabhi badhenge jab website par tracking record save hoga.</p><h3>Recent visits</h3><div style="overflow-x:auto"><table style="width:100%;text-align:left"><thead><tr><th>Date / Time</th><th>Source</th><th>Page</th></tr></thead><tbody>'+ (recent||'<tr><td colspan="3">Abhi koi visit record nahi mila.</td></tr>')+'</tbody></table></div></div>';
+    const qrScans=rows.filter(x=>x.source==='qr').length;
+    const recent=rows.slice(0,15).map(x=>'<tr><td>'+new Date(x.visited_at).toLocaleString('en-IN')+'</td><td>'+String(x.source||'direct').replace(/[<>]/g,'')+'</td><td>'+String(x.page_path||'/').replace(/[<>]/g,'')+'</td></tr>').join('');
+    box.innerHTML='<div class="admin-box"><div class="admin-head"><div><p class="eyebrow">MAHARANI ANALYTICS</p><h3>Website Visitors & QR Scans</h3><p class="admin-muted">Website par record hue visits</p></div><button class="button button-outline" type="button" id="refreshVisitorStats">↻ Refresh</button></div><div class="admin-two"><div class="admin-box"><small>Total website visits</small><h2>'+total.toLocaleString('en-IN')+'</h2></div><div class="admin-box"><small>Unique visitors</small><h2>'+unique.toLocaleString('en-IN')+'</h2><p class="admin-help">Latest 1,000 records ke andar</p></div><div class="admin-box"><small>QR se website opens</small><h2>'+qrScans.toLocaleString('en-IN')+'</h2><p class="admin-help">Latest 1,000 records ke andar</p></div></div><p class="admin-help">QR count tab badhega jab naya Maharani QR scan karke website kholi jayegi. Purane QR se aaye scans alag se pehchane nahi ja sakte.</p><h3>Recent visits</h3><div style="overflow-x:auto"><table style="width:100%;text-align:left"><thead><tr><th>Date / Time</th><th>Source</th><th>Page</th></tr></thead><tbody>'+ (recent||'<tr><td colspan="3">Abhi koi visit record nahi mila.</td></tr>')+'</tbody></table></div></div>';
     $('refreshVisitorStats').onclick=renderAdminVisitorStats;
   }catch(error){
-    box.innerHTML='<div class="admin-box"><h3>Website Visitors</h3><p class="admin-error">Visitor data load nahi hua: '+String(error.message||error).replace(/[<>]/g,'')+'</p><p class="admin-help">Supabase me <b>site_visits</b> table aur Admin ke liye SELECT permission zaroori hai. Google Analytics ka report alag se khol sakte hain.</p><a href="https://analytics.google.com/" target="_blank" rel="noopener">Open Google Analytics ↗</a></div>';
+    box.innerHTML='<div class="admin-box"><h3>Website Visitors</h3><p class="admin-error">Visitor data load nahi hua: '+String(error.message||error).replace(/[<>]/g,'')+'</p><p class="admin-help">Supabase site_visits table / Admin permission check karein.</p></div>';
   }
 }
 function openAdmin(){injectAdmin();$('adminPanel').hidden=false;document.body.classList.add('admin-open');loadSupabaseClient().then(refreshAdminSession).catch(e=>{$('adminLoginMsg').textContent='Could not load admin login: '+e.message;});}
@@ -495,7 +498,7 @@ async function init(){
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
   initOfferNotification();
-  await loadProducts();rebuildCategories();renderCategoryFilter();$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(SITE_URL);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
+  await loadProducts();rebuildCategories();renderCategoryFilter();const trackedQrUrl=SITE_URL+'?source=qr';$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(trackedQrUrl);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
   $('orderForm').onsubmit=async e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);const saved=await saveOrderToServer(inv);if(!saved){toast('❌ Order database में save नहीं हुआ: '+(inv.serverError||'unknown error'));return;}lastInvoice=saved;saveOrderToHistory(saved);const message='👑 MAHARANI SAREE COLLECTION\\n\\n🛒 NEW ORDER\\n🧾 Order No: '+inv.number+'\\n\\n1️⃣ नाम: '+inv.name+'\\n2️⃣ मोबाइल: '+inv.mobile+'\\n3️⃣ पता: '+inv.address+'\\n4️⃣ PIN: '+inv.pin+'\\n\\n5️⃣ सामान: '+inv.items.map(i=>i.name+' ('+i.category+')').join(', ')+'\\n6️⃣ Qty: '+inv.items.reduce((s,i)=>s+Number(i.qty||0),0)+'\\n7️⃣ रेट: '+inv.items.map(i=>money(i.price)).join(', ')+'\\n8️⃣ कुल: '+money(inv.total);$('checkoutDialog').close();cart=[];saveCart();renderCart();toast('✅ Order database में save हो गया');window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');};
   window.addEventListener('hashchange',maybeAdminHash);maybeAdminHash();
@@ -513,7 +516,10 @@ init()
     if (!visitorId) {
       visitorId = (window.crypto && crypto.randomUUID)
         ? crypto.randomUUID()
-        : 'v-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+          });
       localStorage.setItem(storageKey, visitorId);
     }
     const params = new URLSearchParams(window.location.search);
@@ -529,7 +535,8 @@ init()
       body: JSON.stringify({
         visitor_id: visitorId,
         source: source,
-        page: window.location.pathname
+        page_path: window.location.pathname,
+        referrer: document.referrer ? document.referrer.slice(0, 2000) : null
       }),
       keepalive: true
     }).catch(() => {});
