@@ -450,7 +450,7 @@ async function saveAdminProduct(e){
     if(id) result=await client.from('Products').update(payload).eq('id',id).select().single();
     else result=await client.from('Products').insert(payload).select().single();
     if(result.error)throw result.error;
-    msg.textContent='Product saved successfully ✓';await refreshAdminList();await loadProducts();trackMaharaniVisit();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();setTimeout(resetAdminForm,600);
+    msg.textContent='Product saved successfully ✓';await refreshAdminList();await loadProducts();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();setTimeout(resetAdminForm,600);
   }catch(error){console.error(error);msg.textContent='Save failed: '+(error.message||error);}
   finally{save.disabled=false;}
 }
@@ -497,21 +497,23 @@ document.addEventListener('DOMContentLoaded',()=>{
 async function trackMaharaniVisit(){
   try{
     const storageKey='maharani_visitor_id';
-    let visitorId=localStorage.getItem(storageKey);
-    if(!visitorId||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(visitorId)){
+    let visitorId='';
+    try{visitorId=localStorage.getItem(storageKey)||'';}catch(e){}
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(visitorId)){
       visitorId=window.crypto?.randomUUID?window.crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);});
-      localStorage.setItem(storageKey,visitorId);
+      try{localStorage.setItem(storageKey,visitorId);}catch(e){}
     }
     const params=new URLSearchParams(window.location.search);
-    const source=(params.get('utm_source')||params.get('source')||(document.referrer?new URL(document.referrer).hostname:'direct')).slice(0,80);
-    const client=await getSupabaseClient();
-    const result=await client.from('site_visits').insert({
-      visitor_id:visitorId,
-      source:source,
-      page_path:window.location.pathname,
-      referrer:document.referrer?document.referrer.slice(0,2000):null
+    let source=params.get('utm_source')||params.get('source')||'';
+    if(!source&&document.referrer){try{source=new URL(document.referrer).hostname;}catch(e){}}
+    if(!source)source='direct';
+    const response=await fetch(SUPABASE_URL+'/rest/v1/site_visits',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY,'Prefer':'return=minimal'},
+      body:JSON.stringify({visitor_id:visitorId,source:source.slice(0,80),page_path:window.location.pathname,referrer:document.referrer?document.referrer.slice(0,2000):null}),
+      keepalive:true
     });
-    if(result.error)throw result.error;
+    if(!response.ok)throw new Error('HTTP '+response.status+' '+(await response.text()).slice(0,300));
     console.info('Maharani visitor recorded');
   }catch(error){
     console.warn('Maharani visitor tracking failed:',error?.message||error);
@@ -522,6 +524,7 @@ async function init(){
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
   initOfferNotification();
+  trackMaharaniVisit();
   await loadProducts();rebuildCategories();renderCategoryFilter();const trackedQrUrl=SITE_URL+'?source=qr';$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(trackedQrUrl);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
   $('orderForm').onsubmit=async e=>{e.preventDefault();const data=new FormData(e.target);const inv=createInvoice(data);const saved=await saveOrderToServer(inv);if(!saved){toast('❌ Order database में save नहीं हुआ: '+(inv.serverError||'unknown error'));return;}lastInvoice=saved;saveOrderToHistory(saved);const message='👑 MAHARANI SAREE COLLECTION\\n\\n🛒 NEW ORDER\\n🧾 Order No: '+inv.number+'\\n\\n1️⃣ नाम: '+inv.name+'\\n2️⃣ मोबाइल: '+inv.mobile+'\\n3️⃣ पता: '+inv.address+'\\n4️⃣ PIN: '+inv.pin+'\\n\\n5️⃣ सामान: '+inv.items.map(i=>i.name+' ('+i.category+')').join(', ')+'\\n6️⃣ Qty: '+inv.items.reduce((s,i)=>s+Number(i.qty||0),0)+'\\n7️⃣ रेट: '+inv.items.map(i=>money(i.price)).join(', ')+'\\n8️⃣ कुल: '+money(inv.total);$('checkoutDialog').close();cart=[];saveCart();renderCart();toast('✅ Order database में save हो गया');window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(message),'_blank','noopener');};
