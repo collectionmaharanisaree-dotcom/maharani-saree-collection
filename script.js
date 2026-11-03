@@ -528,8 +528,7 @@ init()
       method: 'POST',
       headers: {
         'apikey': publishableKey,
-        'Authorization': 'Bearer ' + publishableKey,
-        'Content-Type': 'application/json',
+                'Content-Type': 'application/json',
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
