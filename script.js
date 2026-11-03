@@ -513,7 +513,7 @@ init()
   try {
     const storageKey = 'maharani_visitor_id';
     let visitorId = localStorage.getItem(storageKey);
-    if (!visitorId) {
+    if (!visitorId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(visitorId)) {
       visitorId = (window.crypto && crypto.randomUUID)
         ? crypto.randomUUID()
         : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
