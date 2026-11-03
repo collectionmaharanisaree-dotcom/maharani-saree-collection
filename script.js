@@ -523,7 +523,6 @@ async function trackMaharaniVisit(){
 async function init(){
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
-  initOfferNotification();
   trackMaharaniVisit();
   await loadProducts();rebuildCategories();renderCategoryFilter();const trackedQrUrl=SITE_URL+'?source=qr';$('qrImage').src='https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='+encodeURIComponent(trackedQrUrl);$('siteUrl').textContent=SITE_URL;renderCategories();renderProducts();renderCart();
   $('searchInput').oninput=renderProducts;$('categoryFilter').onchange=renderProducts;$('cartOpen').onclick=openDrawer;$('cartClose').onclick=closeDrawer;$('drawerOverlay').onclick=closeDrawer;$('checkoutOpen').onclick=openCheckout;$('dialogClose').onclick=()=>$('productDialog').close();$('checkoutClose').onclick=()=>$('checkoutDialog').close();$('invoiceClose').onclick=()=>$('invoiceDialog').close();$('invoicePrint').onclick=printInvoice;$('invoiceShare').onclick=shareInvoiceImage;$('invoiceModify').onclick=modifyInvoice;$('invoiceDelete').onclick=deleteInvoice;$('invoiceWhatsapp').onclick=()=>{if(lastInvoice)window.open('https://wa.me/'+WHATSAPP+'?text='+encodeURIComponent(invoiceText()),'_blank','noopener');};
