@@ -50,7 +50,7 @@ function normalizeProduct(row) {
   const image = safeImage(row.Image ?? row.image);
   return {
     id: row.id, name: row.Name ?? row.name ?? 'Product', category: row.Category ?? row.category ?? 'Other',
-    price: toNumber(row.Price ?? row.price), mrp: toNumber(row.Mrp ?? row.mrp), image,
+    price: toNumber(row.Price ?? row.price), mrp: toNumber(row.Mrp ?? row.MRP ?? row.mrp ?? row.m_r_p), image,
     images: parseImages(row.images ?? row.Images, image), description: row.Description ?? row.description ?? '',
     size: String(row.Size ?? row.size ?? '').trim() || ((String(row.Description ?? row.description ?? '').match(/^\\[SIZE:\\s*(.*?)\\]/i)||[])[1]||'').trim()
   };
@@ -125,7 +125,7 @@ function renderProducts() {
   const shown=products.filter(p=>(category==='All'||p.category===category)&&((p.name+' '+p.category).toLowerCase().includes(term)));
   $('productGrid').innerHTML=shown.map(p=>{
     const discount=p.mrp>0?Math.max(0,Math.round((1-p.price/p.mrp)*100)):0;
-    return '<article class="product-card"><button class="product-image" data-detail="'+p.id+'" aria-label="View '+p.name+' details"><img src="'+p.image+'" alt="'+p.name+'" loading="lazy">'+(discount>0?'<span class="discount">'+discount+'% off</span>':'')+'</button><div class="product-info"><p class="product-category">'+p.category+'</p><h3>'+p.name+'</h3><div class="price"><strong>'+money(p.price)+'</strong>'+(p.mrp>p.price?'<del>'+money(p.mrp)+'</del>':'')+'</div><button class="button button-dark add-button" data-add="'+p.id+'">Add to bag</button></div></article>';
+    return '<article class="product-card"><button class="product-image" data-detail="'+p.id+'" aria-label="View '+p.name+' details"><img src="'+p.image+'" alt="'+p.name+'" loading="lazy">'+(discount>0?'<span class="discount">'+discount+'% off</span>':'')+'</button><div class="product-info"><p class="product-category">'+p.category+'</p><h3>'+p.name+'</h3><div class="price"><strong>'+money(p.price)+'</strong>'+(p.mrp>p.price?'<span class="mrp-label">MRP <del>'+money(p.mrp)+'</del></span>':'')+'</div><button class="button button-dark add-button" data-add="'+p.id+'">Add to bag</button></div></article>';
   }).join('');
   $('noResults').hidden=shown.length>0;
   document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addToCart(b.dataset.add));
@@ -147,7 +147,7 @@ function renderCart(){
 function showDetail(id){
   const p=findProduct(id);if(!p)return;
   const imgs=p.images?.length?p.images:[p.image];
-  $('productDetail').innerHTML='<div><div class="product-gallery"><img id="detailMainImage" src="'+imgs[0]+'" alt="'+p.name+'"><div class="product-thumbs">'+imgs.map((src,i)=>'<button class="product-thumb '+(i===0?'active':'')+'" data-gallery="'+i+'"><img src="'+src+'" alt="Photo '+(i+1)+'"></button>').join('')+'</div></div></div><div><p class="eyebrow">'+p.category+'</p><h2>'+p.name+'</h2><p>'+p.description.replace(/^\\[SIZE:\\s*.*?\\]\\n?/i,'')+'</p>'+(p.size?'<p><strong>Size:</strong> '+p.size+'</p>':'')+'<div class="price detail-price"><strong>'+money(p.price)+'</strong>'+(p.mrp>p.price?'<del>'+money(p.mrp)+'</del>':'')+'</div><button class="button button-dark full" data-detail-add="'+p.id+'">Add to bag</button></div>';
+  $('productDetail').innerHTML='<div><div class="product-gallery"><img id="detailMainImage" src="'+imgs[0]+'" alt="'+p.name+'"><div class="product-thumbs">'+imgs.map((src,i)=>'<button class="product-thumb '+(i===0?'active':'')+'" data-gallery="'+i+'"><img src="'+src+'" alt="Photo '+(i+1)+'"></button>').join('')+'</div></div></div><div><p class="eyebrow">'+p.category+'</p><h2>'+p.name+'</h2><p>'+p.description.replace(/^\\[SIZE:\\s*.*?\\]\\n?/i,'')+'</p>'+(p.size?'<p><strong>Size:</strong> '+p.size+'</p>':'')+'<div class="price detail-price"><strong>'+money(p.price)+'</strong>'+(p.mrp>p.price?'<span class="mrp-label">MRP <del>'+money(p.mrp)+'</del></span>':'')+'</div><button class="button button-dark full" data-detail-add="'+p.id+'">Add to bag</button></div>';
   $('productDialog').showModal();
   document.querySelector('[data-detail-add]').onclick=()=>{addToCart(id);$('productDialog').close();};
   document.querySelectorAll('[data-gallery]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-gallery]').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('detailMainImage').src=imgs[Number(b.dataset.gallery)];});
