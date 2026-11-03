@@ -22,6 +22,7 @@ const fallbackProducts = [
 ];
 
 let products = [], categories = [], supabaseClient = null, adminProducts = [], siteSettings = null, siteSettingsId = null;
+let adminEditingImages = [];
 let customAdminCategories = JSON.parse(localStorage.getItem('maharani-custom-categories') || '[]');
 
 async function getSupabaseClient(){
@@ -417,11 +418,23 @@ function setupAdminCategorySelect(){
   };
 }
 function resetAdminForm(){
-  $('productForm').reset();setupAdminCategorySelect();$('adminId').value='';$('adminPreview').innerHTML='';$('adminFormMsg').textContent='';$('adminSaveBtn').textContent='Save product';$('adminPrice').value='';$('adminDiscount').value='';$('adminSize').value='';
+  $('productForm').reset();setupAdminCategorySelect();$('adminId').value='';adminEditingImages=[];$('adminPreview').innerHTML='';$('adminFormMsg').textContent='';$('adminSaveBtn').textContent='Save product';$('adminPrice').value='';$('adminDiscount').value='';$('adminSize').value='';
+}
+function renderAdminPhotoPreview(){
+  const box=$('adminPreview');if(!box)return;
+  box.innerHTML=adminEditingImages.map((src,i)=>'<div class="admin-photo-item" style="position:relative;display:inline-flex;flex-direction:column;gap:5px;margin:5px"><img src="'+src+'" alt="Product photo '+(i+1)+'" style="width:88px;height:100px;object-fit:cover;border-radius:8px"><button type="button" class="button button-danger" data-remove-admin-photo="'+i+'" style="padding:5px 8px;font-size:11px">Delete</button></div>').join('');
+  box.querySelectorAll('[data-remove-admin-photo]').forEach(btn=>btn.onclick=()=>{
+    const index=Number(btn.dataset.removeAdminPhoto);
+    if(!Number.isInteger(index)||index<0||index>=adminEditingImages.length)return;
+    if(!confirm('Sirf isi photo ko product se hatana hai?'))return;
+    adminEditingImages.splice(index,1);renderAdminPhotoPreview();
+  });
 }
 function previewAdminPhotos(){
-  const box=$('adminPreview');box.innerHTML='';
-  [...$('adminPhotos').files].forEach(file=>{const img=document.createElement('img');img.alt=file.name;img.src=URL.createObjectURL(file);box.appendChild(img);});
+  const box=$('adminPreview');
+  const newFiles=[...$('adminPhotos').files];
+  renderAdminPhotoPreview();
+  newFiles.forEach(file=>{const img=document.createElement('img');img.alt=file.name;img.src=URL.createObjectURL(file);img.style.cssText='width:88px;height:100px;object-fit:cover;border-radius:8px;margin:5px';box.appendChild(img);});
 }
 function storagePath(file){const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'');return 'products/'+crypto.randomUUID()+'.'+(ext||'jpg');}
 async function uploadAdminPhotos(files){
@@ -441,9 +454,10 @@ async function saveAdminProduct(e){
     const id=$('adminId').value,name=$('adminName').value.trim(),category=$('adminCategory').value,price=toNumber($('adminPrice').value),mrp=toNumber($('adminMrp').value),discount=toNumber($('adminDiscount').value),size=$('adminSize').value.trim(),baseDescription=$('adminDescription').value.trim(),description=(size?'[SIZE: '+size+']\\n':'')+baseDescription,files=[...$('adminPhotos').files];
     let existing=null;
     if(id) existing=adminProducts.find(p=>String(p.id)===String(id));
-    let image=existing?.image||'', images=existing?.images||[];
-    if(files.length){const uploaded=await uploadAdminPhotos(files);images=[...images,...uploaded];image=images[0];}
-    if(!image)image=FALLBACK_IMAGE;
+    let images=id?[...adminEditingImages]:(existing?.images||[]);
+    if(files.length){const uploaded=await uploadAdminPhotos(files);images=[...images,...uploaded];}
+    if(!images.length)images=[FALLBACK_IMAGE];
+    const image=images[0]||FALLBACK_IMAGE;
     const payload={Name:name,Category:category,Price:price,Mrp:mrp,Image:image,images:JSON.stringify(images),Description:description};
     let result;
     const client=await getSupabaseClient();
@@ -479,7 +493,7 @@ function editAdminProduct(id){
   const sizeMatch=String(p.description||'').match(/^\\[SIZE:\\s*(.*?)\\]\\n?/i);
   $('adminSize').value=sizeMatch?sizeMatch[1]:'';
   $('adminDescription').value=String(p.description||'').replace(/^\\[SIZE:\\s*.*?\\]\\n?/i,'');
-  $('adminPreview').innerHTML=(p.images||[]).map(src=>'<img src="'+src+'" alt="">').join('');
+  adminEditingImages=[...(p.images||[p.image])];renderAdminPhotoPreview();
   $('adminFormMsg').textContent='Existing photos kept. Select new photos to add more.';
   $('adminSaveBtn').textContent='Update product';
   $('productForm').scrollIntoView({behavior:'smooth',block:'start'});
