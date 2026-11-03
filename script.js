@@ -450,7 +450,7 @@ async function saveAdminProduct(e){
     if(id) result=await client.from('Products').update(payload).eq('id',id).select().single();
     else result=await client.from('Products').insert(payload).select().single();
     if(result.error)throw result.error;
-    msg.textContent='Product saved successfully ✓';await refreshAdminList();await loadProducts();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();setTimeout(resetAdminForm,600);
+    msg.textContent='Product saved successfully ✓';await refreshAdminList();await loadProducts();trackMaharaniVisit();rebuildCategories();renderCategoryFilter();renderCategories();renderProducts();setTimeout(resetAdminForm,600);
   }catch(error){console.error(error);msg.textContent='Save failed: '+(error.message||error);}
   finally{save.disabled=false;}
 }
@@ -494,6 +494,30 @@ function maybeAdminHash(){if(location.hash.toLowerCase()==='#admin'){openAdmin()
 document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('a[href="#admin"]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();openAdmin();}));
 });
+async function trackMaharaniVisit(){
+  try{
+    const storageKey='maharani_visitor_id';
+    let visitorId=localStorage.getItem(storageKey);
+    if(!visitorId||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(visitorId)){
+      visitorId=window.crypto?.randomUUID?window.crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);});
+      localStorage.setItem(storageKey,visitorId);
+    }
+    const params=new URLSearchParams(window.location.search);
+    const source=(params.get('utm_source')||params.get('source')||(document.referrer?new URL(document.referrer).hostname:'direct')).slice(0,80);
+    const client=await getSupabaseClient();
+    const result=await client.from('site_visits').insert({
+      visitor_id:visitorId,
+      source:source,
+      page_path:window.location.pathname,
+      referrer:document.referrer?document.referrer.slice(0,2000):null
+    });
+    if(result.error)throw result.error;
+    console.info('Maharani visitor recorded');
+  }catch(error){
+    console.warn('Maharani visitor tracking failed:',error?.message||error);
+  }
+}
+
 async function init(){
   const isRecovery=await maybePasswordRecovery();
   if(isRecovery)return;
@@ -505,41 +529,3 @@ async function init(){
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();if($('productDialog').open)$('productDialog').close();if($('checkoutDialog').open)$('checkoutDialog').close();}});
 }
 init()
-
-/* Maharani site visitor analytics */
-(() => {
-  const supabaseUrl = 'https://rqzaibfdwczpqfrswcvg.supabase.co';
-  const publishableKey = 'sb_publishable_oPs57ONamrOxneH9jsxbvw__PzUetUG';
-  try {
-    const storageKey = 'maharani_visitor_id';
-    let visitorId = localStorage.getItem(storageKey);
-    if (!visitorId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(visitorId)) {
-      visitorId = (window.crypto && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-            const r = Math.random() * 16 | 0;
-            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-          });
-      localStorage.setItem(storageKey, visitorId);
-    }
-    const params = new URLSearchParams(window.location.search);
-    const source = (params.get('utm_source') || params.get('source') || 'direct').slice(0, 80);
-    fetch(supabaseUrl + '/rest/v1/site_visits', {
-      method: 'POST',
-      headers: {
-        'apikey': publishableKey,
-                'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        visitor_id: visitorId,
-        source: source,
-        page_path: window.location.pathname,
-        referrer: document.referrer ? document.referrer.slice(0, 2000) : null
-      }),
-      keepalive: true
-    }).catch(() => {});
-  } catch (_) {
-    // Analytics must never interfere with shopping or checkout.
-  }
-})();
